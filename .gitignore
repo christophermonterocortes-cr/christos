@@ -1,0 +1,17 @@
+# OS & Shell history
+.DS_Store
+Thumbs.db
+.zsh*
+.bash*
+*.log
+*.tar.gz
+
+# Temporary directories and caches
+__pycache__/
+*.pyc
+christos_stage/
+christos_build/
+edge_profile*/
+data/
+*.sqlite
+*.sqlite3

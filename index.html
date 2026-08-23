@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="apple">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHRISTOS - Hi-Fi Media Server</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#fa233b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="assets/css/base.css?v=2.4.1">
+    <link rel="stylesheet" href="assets/css/apple.css?v=2.4.1" id="theme-css">
+    <!-- Three.js for 3D visualizers -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <!-- MASTER VISUALIZER CONTAINER -->
+    <div id="visualizer-container">
+        <canvas id="visualizer-canvas-2d"></canvas>
+        <canvas id="visualizer-canvas-3d" style="display:none;"></canvas>
+        <!-- Floating Album Tag in Visualizer Corner -->
+        <div id="visualizer-floating-tag" class="visualizer-floating-tag">
+            <img id="fullscreen-mini-art" src="" alt="Album Art">
+            <div class="viz-tag-text">
+                <span id="fullscreen-tag-title">CHRISTOS Hi-Fi</span>
+                <span id="fullscreen-tag-artist">Lossless Audio Studio</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MAIN APP CONTAINER -->
+    <div id="app-container">
+        <aside id="sidebar">
+            <div class="brand">
+                <svg class="brand-icon" viewBox="0 0 24 24" width="24" height="24" fill="var(--accent-color)"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <h1>CHRISTOS</h1>
+            </div>
+
+            <!-- Spotlight Search Quick Bar -->
+            <div style="margin-bottom:12px;">
+                <button onclick="openSpotlight()" style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:8px; color:#aaa; font-size:0.85rem; cursor:pointer;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <span>Search...</span>
+                    </div>
+                    <span style="font-size:0.72rem; background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px;">Ctrl+K</span>
+                </button>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <select id="theme-select" class="form-select" onchange="changeAppTheme(this.value)" style="width:100%; font-size:0.85rem; padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:var(--card-radius); color:#fff;">
+                    <option value="apple">Apple Music Glass</option>
+                    <option value="spotify">Spotify Modern</option>
+                    <option value="tidal">Tidal Master Hi-Res</option>
+                    <option value="qobuz">Qobuz Studio Grand</option>
+                    <option value="xbox">Xbox 2001 CRT Blade</option>
+                </select>
+            </div>
+            <nav>
+                <div class="nav-section-label">MUSIC LIBRARIES</div>
+                <ul>
+                    <li data-view="library-flac" class="active" onclick="loadView('library', 'flac')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/></svg>
+                        <span>FLAC Collection</span>
+                    </li>
+                    <li data-view="library-apple_music" onclick="loadView('library', 'apple_music')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        <span>Apple Music ALAC</span>
+                    </li>
+                    <li data-view="artists" onclick="loadView('artists')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <span>Artists</span>
+                    </li>
+                    <li data-view="playlists" onclick="loadView('playlists')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor"/><circle cx="4" cy="12" r="1.5" fill="currentColor"/><circle cx="4" cy="18" r="1.5" fill="currentColor"/></svg>
+                        <span>Playlists</span>
+                    </li>
+                    <li data-view="favorites" onclick="loadView('favorites')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                        <span>Favorites</span>
+                    </li>
+                </ul>
+
+                <div class="nav-section-label">MEDIA & CINEMA</div>
+                <ul>
+                    <li data-view="movies" onclick="loadView('movies')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
+                        <span>Movies & Cinema</span>
+                    </li>
+                    <li data-view="tvshows" onclick="loadView('tvshows')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+                        <span>TV Shows & Series</span>
+                    </li>
+                    <li data-view="files" onclick="loadView('files')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        <span>File Browser</span>
+                    </li>
+                    <li data-view="downloader" onclick="loadView('downloader')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Lossless Downloader</span>
+                    </li>
+                    <li data-view="settings" onclick="loadView('settings')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        <span>Settings</span>
+                    </li>
+                </ul>
+            </nav>
+            <div id="sidebar-footer">
+                <button class="btn btn-secondary fullscreen-nav-btn" onclick="toggleFullscreen()" style="width:100%; margin-bottom:12px;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                    <span>Full Screen (F)</span>
+                </button>
+                <div class="sidebar-status">TrueNAS Media Studio v2.3.0</div>
+            </div>
+        </aside>
+
+        <main id="main-content">
+            <div id="content-view"></div>
+        </main>
+
+        <footer id="player-bar">
+            <div id="track-info">
+                <img id="now-playing-art" src="assets/img/default-star.svg" alt="Album Art">
+                <div class="track-details">
+                    <div class="title-badge-row">
+                        <span id="now-playing-title">No track selected</span>
+                        <span id="audio-quality-badge" class="quality-badge" style="display:none;">FLAC</span>
+                    </div>
+                    <span id="now-playing-artist">Select a song to play</span>
+                </div>
+                <button id="like-btn" class="ctrl-btn-small" onclick="toggleLike()" title="Favorite track">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                </button>
+            </div>
+            
+            <div id="player-center">
+                <div class="transport-controls">
+                    <button class="ctrl-btn" onclick="toggleShuffle()" id="shuffle-btn" title="Shuffle (S)">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                    </button>
+                    <button class="ctrl-btn" onclick="prevTrack()" title="Previous (P)">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+                    </button>
+                    <button class="ctrl-btn play-btn" onclick="togglePlay()" id="play-btn" title="Play/Pause (Space)">
+                        <svg id="play-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        <svg id="pause-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                    </button>
+                    <button class="ctrl-btn" onclick="nextTrack()" title="Next (N)">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                    </button>
+                    <button class="ctrl-btn" onclick="toggleRepeat()" id="repeat-btn" title="Repeat (R)">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                    </button>
+                </div>
+                <div class="seek-wrapper">
+                    <input type="range" id="seek-bar" min="0" max="100" value="0" step="0.1" title="Seek (Left/Right Arrows)">
+                    <span id="time-display">0:00 / 0:00</span>
+                </div>
+            </div>
+            
+            <div id="player-settings">
+                <!-- Audiophile DSP Equalizer Button -->
+                <button class="ctrl-btn" onclick="DSP.openModal()" title="Audiophile DSP & Equalizer Studio (E)">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-color)" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                </button>
+
+                <button id="lyrics-toggle-btn" class="ctrl-btn" onclick="toggleLyrics()" title="Toggle Lyrics (L)">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></svg>
+                </button>
+                <button id="fullscreen-btn" class="ctrl-btn" onclick="toggleFullscreen()" title="Full Screen Cinema Mode (F)">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
+                <div class="volume-wrapper">
+                    <button class="vol-btn" onclick="toggleMute()">
+                        <svg class="vol-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                    </button>
+                    <input type="range" id="volume-bar" min="0" max="1" step="0.01" value="0.8" title="Volume (Up/Down Arrows)">
+                </div>
+                <select id="visualizer-select" class="viz-select" onchange="changeVisualizer(this.value)" title="Visualizer (V)">
+                    <option value="0">Visualizer: Off</option>
+                    <option value="1">NCS Circle</option>
+                    <option value="2">EQ Frequency Bars</option>
+                    <option value="3">Glow Waveform</option>
+                    <option value="4">3D Neon Sphere</option>
+                    <option value="5">3D Particle Vortex</option>
+                    <option value="6">360 Radial</option>
+                    <option value="7" selected>Xbox 2001 Neon</option>
+                </select>
+            </div>
+        </footer>
+        
+        <!-- Standard Lyrics Side Drawer -->
+        <div id="lyrics-overlay">
+            <div class="lyrics-header">
+                <h3>Lyrics</h3>
+                <button class="close-lyrics-btn" onclick="toggleLyrics()">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="lyrics-content"></div>
+        </div>
+    </div>
+
+    <!-- FULLSCREEN CINEMA IMMERSION OVERLAY (DIRECT CHILD OF BODY) -->
+    <div id="fullscreen-view" class="fullscreen-overlay" data-layout="split">
+        <div class="fullscreen-topbar">
+            <div class="fullscreen-brand-info">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--accent-color)"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span class="fullscreen-title-mini">CHRISTOS Hi-Fi Cinema</span>
+            </div>
+            
+            <div class="fullscreen-mode-toggles">
+                <button class="layout-toggle-btn active" data-layout="split" onclick="setFullscreenLayout('split')">Split View</button>
+                <button class="layout-toggle-btn" data-layout="ambient" onclick="setFullscreenLayout('ambient')">Ambient Art</button>
+                <button class="layout-toggle-btn" data-layout="lyrics" onclick="setFullscreenLayout('lyrics')">Full Lyrics</button>
+                <button class="layout-toggle-btn" data-layout="visualizer" onclick="setFullscreenLayout('visualizer')">Full Visualizer</button>
+            </div>
+
+            <div class="fullscreen-top-actions">
+                <select class="viz-select-fs" id="fullscreen-viz-select" onchange="changeVisualizer(this.value)">
+                    <option value="0">Visualizer: Off</option>
+                    <option value="1">NCS Circle</option>
+                    <option value="2">EQ Frequency Bars</option>
+                    <option value="3">Glow Waveform</option>
+                    <option value="4">3D Neon Sphere</option>
+                    <option value="5">3D Particle Vortex</option>
+                    <option value="6">360 Radial</option>
+                    <option value="7" selected>Xbox 2001 Neon</option>
+                    <option value="8">Synthwave Grid</option>
+                    <option value="9">Analog VU Meter</option>
+                    <option value="10">Liquid Lava</option>
+                </select>
+                <button class="fullscreen-exit-btn" onclick="toggleFullscreen(false)" title="Exit Full Screen (Esc)">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="fullscreen-main">
+            <!-- Left Panel: Large Ambient Artwork & Lossless Badges -->
+            <div class="fullscreen-art-section">
+                <div class="fullscreen-art-card">
+                    <img id="fullscreen-art-img" src="assets/img/default-star.svg" alt="Album Cover">
+                    <div class="fullscreen-format-tag" id="fullscreen-format-tag">FLAC LOSSLESS • 24-Bit / 96kHz</div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Synced High-Def Dynamic Lyrics Stream -->
+            <div class="fullscreen-lyrics-section">
+                <div class="fullscreen-track-header">
+                    <h1 id="fullscreen-track-title">Select a track</h1>
+                    <h2 id="fullscreen-track-artist">CHRISTOS Hi-Fi Studio</h2>
+                    <h3 id="fullscreen-track-album"></h3>
+                </div>
+                <div id="fullscreen-lyrics-scroll" class="fullscreen-lyrics-stream">
+                    <div class="empty-lyrics-msg">No synced lyrics available for this stream</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fullscreen Bottom Glassmorphic Control Deck -->
+        <div class="fullscreen-bottombar">
+            <div class="fullscreen-progress-row">
+                <span id="fullscreen-current-time">0:00</span>
+                <input type="range" id="fullscreen-seek-bar" min="0" max="100" value="0" step="0.1">
+                <span id="fullscreen-total-time">0:00</span>
+            </div>
+            
+            <div class="fullscreen-deck-controls">
+                <div class="fullscreen-deck-left">
+                    <button class="ctrl-btn-fs" onclick="toggleShuffle()" id="fs-shuffle-btn" title="Shuffle">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                    </button>
+                    <button class="ctrl-btn-fs" onclick="toggleLike()" id="fs-like-btn" title="Favorite track">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    </button>
+                    <button class="ctrl-btn-fs" onclick="DSP.openModal()" title="DSP Studio (E)">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-color)" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                    </button>
+                </div>
+
+                <div class="fullscreen-deck-center">
+                    <button class="ctrl-btn-fs" onclick="prevTrack()">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+                    </button>
+                    <button class="ctrl-btn-fs play-fs" onclick="togglePlay()" id="fs-play-btn">
+                        <svg id="fs-play-icon" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        <svg id="fs-pause-icon" viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                    </button>
+                    <button class="ctrl-btn-fs" onclick="nextTrack()">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                    </button>
+                </div>
+
+                <div class="fullscreen-deck-right">
+                    <button class="ctrl-btn-fs" onclick="toggleRepeat()" id="fs-repeat-btn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                    </button>
+                    <div class="volume-wrapper-fs">
+                        <svg class="vol-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                        <input type="range" id="fullscreen-volume-bar" min="0" max="1" step="0.01" value="0.8">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden dual audio elements for gapless playback -->
+    <audio id="audio1" preload="auto" crossorigin="anonymous"></audio>
+    <audio id="audio2" preload="auto" crossorigin="anonymous"></audio>
+
+    <script src="assets/js/visualizers/visualizer.js?v=2.4.1"></script>
+    <script src="assets/js/visualizers/ncs.js?v=2.4.1"></script>
+    <script src="assets/js/visualizers/bars.js?v=2.4.1"></script>
+    <script src="assets/js/visualizers/wave.js?v=2.4.1"></script>
+    <script src="assets/js/visualizers/sphere.js?v=2.4.1"></script>
+    <script src="assets/js/visualizers/particles.js?v=2.4.1"></script>
+    <script src="assets/js/visualizers/radial.js?v=2.4.1"></script>
+    <script src="assets/js/visualizers/xbox.js?v=2.4.1"></script>
+    <script src="assets/js/visualizers/synthwave.js?v=2.4.1"></script>
+    <script src="assets/js/visualizers/vumeter.js?v=2.4.1"></script>
+    <script src="assets/js/visualizers/liquid.js?v=2.4.1"></script>
+    <script src="assets/js/dsp.js?v=2.4.1"></script>
+    <script src="assets/js/player.js?v=2.4.1"></script>
+    <script src="assets/js/app.js?v=2.4.1"></script>
+</body>
+</html>

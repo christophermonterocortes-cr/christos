@@ -1,0 +1,60 @@
+/* CHRISTOS Theme: Tidal Master Hi-Res */
+[data-theme="tidal"] {
+    --bg-color: #05070a;
+    --bg-surface: #0c1017;
+    --bg-surface-hover: #151b24;
+    --text-color: #ffffff;
+    --text-secondary: #7f8c9d;
+    --accent-color: #00ffff;
+    --accent-glow: rgba(0, 255, 255, 0.4);
+    --border-color: rgba(0, 255, 255, 0.15);
+    --sidebar-width: 240px;
+    --player-height: 92px;
+    --font-primary: "National", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --card-radius: 2px;
+    --btn-radius: 4px;
+}
+
+[data-theme="tidal"] body {
+    background: #05070a;
+}
+
+[data-theme="tidal"] #sidebar {
+    background: #080b10;
+    border-right: 1px solid #141c26;
+}
+
+[data-theme="tidal"] #main-content {
+    background: #05070a;
+}
+
+[data-theme="tidal"] #player-bar {
+    background: #080c12;
+    border-top: 1px solid #182330;
+}
+
+[data-theme="tidal"] .album-card {
+    background: #0c1017;
+    border: 1px solid #161e2b;
+    border-radius: 2px;
+}
+
+[data-theme="tidal"] .quality-badge {
+    background: #00ffff;
+    color: #000000;
+    font-weight: 800;
+    letter-spacing: 1px;
+    border-radius: 2px;
+}
+
+[data-theme="tidal"] .card-play-btn {
+    background: #00ffff;
+    color: #000000;
+    border-radius: 2px;
+}
+
+[data-theme="tidal"] .btn-primary {
+    background: #00ffff;
+    color: #000000;
+    border-radius: 2px;
+}

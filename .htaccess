@@ -1,0 +1,14 @@
+# CHRISTOS Apache Configuration
+DirectoryIndex index.html
+
+# Prevent direct access to sensitive PHP includes
+<FilesMatch "^(config|db|metadata)\.php$">
+    Require all denied
+</FilesMatch>
+
+# Allow CORS and range requests for audio streaming
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Headers "Range, Content-Type, Authorization, X-Requested-With"
+    Header set Access-Control-Expose-Headers "Content-Range, Content-Length, Accept-Ranges, Content-Type"
+</IfModule>

@@ -1,0 +1,35 @@
+/* CHRISTOS Theme: Apple Music Hi-Fi Glassmorphism */
+[data-theme="apple"] {
+    --bg-color: #0d0d14;
+    --bg-surface: rgba(26, 26, 36, 0.72);
+    --bg-surface-hover: rgba(42, 42, 58, 0.85);
+    --text-color: #ffffff;
+    --text-secondary: #9898a0;
+    --accent-color: #fa233b;
+    --accent-glow: rgba(250, 35, 59, 0.45);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --sidebar-width: 250px;
+    --player-height: 90px;
+    --font-primary: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+    --card-radius: 12px;
+    --btn-radius: 20px;
+}
+
+[data-theme="apple"] #sidebar {
+    background: rgba(18, 18, 24, 0.65);
+    backdrop-filter: blur(40px) saturate(190%);
+    -webkit-backdrop-filter: blur(40px);
+    border-right: 1px solid var(--border-color);
+}
+
+[data-theme="apple"] #player-bar {
+    background: rgba(20, 20, 28, 0.85);
+    backdrop-filter: blur(45px) saturate(200%);
+    border-top: 1px solid var(--border-color);
+}
+
+[data-theme="apple"] .lib-tab-btn.active {
+    background: #fff;
+    color: #000;
+    font-weight: 700;
+}

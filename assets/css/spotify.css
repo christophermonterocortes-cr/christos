@@ -1,0 +1,69 @@
+/* CHRISTOS Theme: Spotify Modern Studio */
+[data-theme="spotify"] {
+    --bg-color: #000000;
+    --bg-surface: #181818;
+    --bg-surface-hover: #282828;
+    --text-color: #ffffff;
+    --text-secondary: #b3b3b3;
+    --accent-color: #1ed760;
+    --accent-glow: rgba(30, 215, 96, 0.4);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --sidebar-width: 280px;
+    --player-height: 88px;
+    --font-primary: "Circular Std", "Spotify Circular", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --card-radius: 8px;
+    --btn-radius: 500px;
+}
+
+[data-theme="spotify"] body {
+    background: #000000;
+}
+
+[data-theme="spotify"] #app-container {
+    padding: 8px;
+    gap: 8px;
+    grid-template-rows: 1fr var(--player-height);
+}
+
+[data-theme="spotify"] #sidebar {
+    background: #121212;
+    border-radius: 8px;
+    border: none;
+    padding: 20px 16px;
+}
+
+[data-theme="spotify"] #main-content {
+    background: linear-gradient(180deg, #222222 0%, #121212 280px);
+    border-radius: 8px;
+    border: none;
+}
+
+[data-theme="spotify"] #player-bar {
+    background: #000000;
+    border-top: none;
+    border-radius: 0;
+    padding: 0 16px;
+}
+
+[data-theme="spotify"] .album-card {
+    background: #181818;
+    border-radius: 8px;
+    border: none;
+    padding: 16px;
+}
+
+[data-theme="spotify"] .album-card:hover {
+    background: #282828;
+}
+
+[data-theme="spotify"] .card-play-btn {
+    background: #1ed760;
+    color: #000000;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+}
+
+[data-theme="spotify"] .lib-tab-btn.active {
+    background: #ffffff;
+    color: #000000;
+    border-radius: 500px;
+}

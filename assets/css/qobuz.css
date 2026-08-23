@@ -1,0 +1,50 @@
+/* CHRISTOS Theme: Qobuz Studio Grand */
+[data-theme="qobuz"] {
+    --bg-color: #020914;
+    --bg-surface: rgba(7, 21, 41, 0.85);
+    --bg-surface-hover: rgba(14, 38, 72, 0.95);
+    --text-color: #f7f9fc;
+    --text-secondary: #8c9fb8;
+    --accent-color: #dfba73;
+    --accent-glow: rgba(223, 186, 115, 0.45);
+    --border-color: rgba(223, 186, 115, 0.18);
+    --sidebar-width: 260px;
+    --player-height: 94px;
+    --font-primary: "Baskerville", "Playfair Display", -apple-system, Georgia, serif;
+    --card-radius: 6px;
+    --btn-radius: 6px;
+}
+
+[data-theme="qobuz"] body {
+    background: radial-gradient(circle at 50% 0%, #081a38 0%, #020914 85%);
+}
+
+[data-theme="qobuz"] #sidebar {
+    background: rgba(4, 15, 30, 0.85);
+    backdrop-filter: blur(30px);
+    border-right: 1px solid var(--border-color);
+}
+
+[data-theme="qobuz"] #player-bar {
+    background: rgba(3, 12, 26, 0.92);
+    backdrop-filter: blur(35px);
+    border-top: 1px solid var(--border-color);
+}
+
+[data-theme="qobuz"] .quality-badge {
+    background: linear-gradient(135deg, #dfba73, #a57c2c);
+    color: #000000;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+[data-theme="qobuz"] .card-play-btn {
+    background: #dfba73;
+    color: #000000;
+}
+
+[data-theme="qobuz"] .lib-tab-btn.active {
+    background: #dfba73;
+    color: #000000;
+    font-weight: 700;
+}

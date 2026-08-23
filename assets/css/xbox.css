@@ -1,0 +1,55 @@
+/* CHRISTOS Theme: Xbox 2001 Neon CRT Blade */
+[data-theme="xbox"] {
+    --bg-color: #020803;
+    --bg-surface: rgba(6, 26, 10, 0.8);
+    --bg-surface-hover: rgba(12, 46, 20, 0.9);
+    --text-color: #e8ffe8;
+    --text-secondary: #6bb07a;
+    --accent-color: #30ff85;
+    --accent-glow: rgba(48, 255, 133, 0.5);
+    --border-color: rgba(48, 255, 133, 0.25);
+    --sidebar-width: 250px;
+    --player-height: 92px;
+    --font-primary: "X360", "Eurostile", "OCR A Extended", "Segoe UI", monospace;
+    --card-radius: 0px;
+    --btn-radius: 2px;
+}
+
+[data-theme="xbox"] body {
+    background: #020803;
+    text-shadow: 0 0 4px rgba(48, 255, 133, 0.4);
+}
+
+[data-theme="xbox"] #sidebar {
+    background: rgba(3, 14, 5, 0.9);
+    border-right: 2px solid #30ff85;
+    box-shadow: 4px 0 20px rgba(48, 255, 133, 0.15);
+}
+
+[data-theme="xbox"] #player-bar {
+    background: rgba(2, 10, 4, 0.95);
+    border-top: 2px solid #30ff85;
+    box-shadow: 0 -4px 20px rgba(48, 255, 133, 0.15);
+}
+
+[data-theme="xbox"] .album-card {
+    border: 1px solid #30ff85;
+    box-shadow: 0 0 10px rgba(48, 255, 133, 0.15);
+}
+
+[data-theme="xbox"] .card-play-btn {
+    background: #30ff85;
+    color: #000;
+}
+
+[data-theme="xbox"] .quality-badge {
+    background: #30ff85;
+    color: #000;
+    font-weight: 800;
+}
+
+[data-theme="xbox"] .lib-tab-btn.active {
+    background: #30ff85;
+    color: #000;
+    box-shadow: 0 0 12px #30ff85;
+}
