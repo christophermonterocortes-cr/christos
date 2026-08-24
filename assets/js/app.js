@@ -944,6 +944,58 @@ const CinemaPlayer = {
         });
 
         this.modal.innerHTML = `
+            <style id="cinema-player-inline-styles">
+                .theater-modal { position: fixed !important; inset: 0 !important; z-index: 999999 !important; background: #000000 !important; display: flex !important; flex-direction: column !important; overflow: hidden !important; color: #ffffff !important; user-select: none !important; -webkit-user-select: none !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important; }
+                .theater-modal.cursor-hidden { cursor: none !important; }
+                .theater-viewport { position: relative !important; width: 100vw !important; height: 100vh !important; display: flex !important; align-items: center !important; justify-content: center !important; background: #000000 !important; overflow: hidden !important; }
+                .theater-video-elem { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important; background: #000000 !important; }
+                .theater-video-elem.fill { object-fit: cover !important; }
+                .theater-video-elem.stretch { object-fit: fill !important; }
+                .theater-video-elem::cue { background-color: rgba(0, 0, 0, 0.8) !important; color: #ffffff !important; font-size: 1.15rem !important; font-weight: 600 !important; text-shadow: 0 2px 4px rgba(0,0,0,0.9) !important; border-radius: 6px !important; padding: 2px 8px !important; }
+                .theater-top-overlay { position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; padding: 24px 36px 48px 36px !important; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%) !important; display: flex !important; justify-content: space-between !important; align-items: center !important; z-index: 100 !important; transition: opacity 0.3s ease, transform 0.3s ease !important; pointer-events: auto !important; }
+                .theater-bottom-overlay { position: absolute !important; bottom: 0 !important; left: 0 !important; right: 0 !important; padding: 60px 36px 24px 36px !important; background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 60%, transparent 100%) !important; display: flex !important; flex-direction: column !important; gap: 12px !important; z-index: 100 !important; transition: opacity 0.3s ease, transform 0.3s ease !important; pointer-events: auto !important; }
+                .theater-controls-hidden .theater-top-overlay { opacity: 0 !important; transform: translateY(-20px) !important; pointer-events: none !important; }
+                .theater-controls-hidden .theater-bottom-overlay { opacity: 0 !important; transform: translateY(20px) !important; pointer-events: none !important; }
+                .theater-title-wrap { display: flex !important; align-items: center !important; gap: 16px !important; }
+                .theater-exit-btn { display: inline-flex !important; align-items: center !important; gap: 6px !important; background: rgba(255, 255, 255, 0.12) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; color: #ffffff !important; padding: 7px 16px !important; border-radius: 20px !important; font-size: 0.85rem !important; font-weight: 600 !important; cursor: pointer !important; backdrop-filter: blur(16px) !important; -webkit-backdrop-filter: blur(16px) !important; transition: all 0.2s ease !important; outline: none !important; }
+                .theater-exit-btn:hover { background: rgba(255, 255, 255, 0.22) !important; transform: scale(1.04) !important; }
+                .theater-title-text { font-size: 1.15rem !important; font-weight: 700 !important; color: #ffffff !important; display: flex !important; align-items: center !important; gap: 10px !important; }
+                .theater-quality-pill { background: #fa233b !important; color: #ffffff !important; font-size: 0.65rem !important; font-weight: 800 !important; padding: 2px 6px !important; border-radius: 4px !important; letter-spacing: 0.5px !important; }
+                .theater-top-actions { display: flex !important; align-items: center !important; gap: 8px !important; }
+                .theater-icon-btn { background: rgba(255, 255, 255, 0.08) !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; color: #ffffff !important; width: 38px !important; height: 38px !important; border-radius: 50% !important; display: flex !important; align-items: center !important; justify-content: center !important; cursor: pointer !important; backdrop-filter: blur(12px) !important; -webkit-backdrop-filter: blur(12px) !important; transition: all 0.2s ease !important; outline: none !important; padding: 0 !important; }
+                .theater-icon-btn:hover { background: rgba(255, 255, 255, 0.22) !important; transform: scale(1.08) !important; }
+                .theater-icon-btn.active { background: #fa233b !important; border-color: #fa233b !important; box-shadow: 0 0 12px rgba(250, 35, 59, 0.6) !important; }
+                .theater-scrub-container { position: relative !important; width: 100% !important; height: 20px !important; display: flex !important; align-items: center !important; cursor: pointer !important; }
+                .theater-scrub-track { position: relative !important; width: 100% !important; height: 5px !important; background: rgba(255, 255, 255, 0.22) !important; border-radius: 4px !important; transition: height 0.15s ease !important; }
+                .theater-scrub-container:hover .theater-scrub-track { height: 7px !important; }
+                .theater-scrub-buffer { position: absolute !important; left: 0 !important; top: 0 !important; bottom: 0 !important; background: rgba(255, 255, 255, 0.35) !important; border-radius: 4px !important; width: 0% !important; }
+                .theater-scrub-progress { position: absolute !important; left: 0 !important; top: 0 !important; bottom: 0 !important; background: #fa233b !important; border-radius: 4px !important; width: 0% !important; box-shadow: 0 0 10px rgba(250, 35, 59, 0.6) !important; }
+                .theater-scrub-thumb { position: absolute !important; right: -6px !important; top: 50% !important; transform: translateY(-50%) scale(0) !important; width: 13px !important; height: 13px !important; border-radius: 50% !important; background: #ffffff !important; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6) !important; transition: transform 0.15s ease !important; }
+                .theater-scrub-container:hover .theater-scrub-thumb { transform: translateY(-50%) scale(1) !important; }
+                .theater-scrub-tooltip { position: absolute !important; bottom: 26px !important; transform: translateX(-50%) !important; background: rgba(16, 18, 28, 0.95) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; color: #ffffff !important; padding: 3px 8px !important; border-radius: 5px !important; font-size: 0.78rem !important; font-weight: 700 !important; pointer-events: none !important; display: none !important; }
+                .theater-deck-bar { display: flex !important; justify-content: space-between !important; align-items: center !important; width: 100% !important; }
+                .theater-deck-left, .theater-deck-right { display: flex !important; align-items: center !important; gap: 12px !important; }
+                .theater-play-btn { background: #ffffff !important; color: #000000 !important; border: none !important; width: 42px !important; height: 42px !important; border-radius: 50% !important; display: flex !important; align-items: center !important; justify-content: center !important; cursor: pointer !important; box-shadow: 0 3px 14px rgba(255, 255, 255, 0.25) !important; transition: transform 0.15s ease !important; outline: none !important; padding: 0 !important; }
+                .theater-play-btn:hover { transform: scale(1.08) !important; }
+                .theater-skip-btn { background: transparent !important; border: none !important; color: #e2e8f0 !important; cursor: pointer !important; display: inline-flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; font-size: 0.62rem !important; font-weight: 700 !important; gap: 1px !important; padding: 4px 6px !important; border-radius: 6px !important; transition: all 0.15s ease !important; outline: none !important; }
+                .theater-skip-btn:hover { color: #ffffff !important; background: rgba(255, 255, 255, 0.1) !important; transform: scale(1.05) !important; }
+                .theater-volume-group { display: flex !important; align-items: center !important; gap: 6px !important; }
+                .theater-volume-slider { width: 80px !important; height: 4px !important; -webkit-appearance: none !important; appearance: none !important; background: rgba(255, 255, 255, 0.25) !important; border-radius: 2px !important; outline: none !important; cursor: pointer !important; accent-color: #fa233b !important; }
+                .theater-time-display { font-size: 0.84rem !important; font-weight: 600 !important; color: #cbd5e1 !important; font-variant-numeric: tabular-nums !important; margin-left: 4px !important; cursor: pointer !important; }
+                .theater-menu-popup { position: absolute !important; bottom: 46px !important; right: 0 !important; background: rgba(16, 18, 28, 0.96) !important; backdrop-filter: blur(25px) !important; -webkit-backdrop-filter: blur(25px) !important; border: 1px solid rgba(255, 255, 255, 0.16) !important; border-radius: 10px !important; padding: 6px !important; min-width: 190px !important; max-height: 260px !important; overflow-y: auto !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8) !important; display: none !important; z-index: 200 !important; }
+                .theater-menu-popup.active { display: block !important; }
+                .theater-menu-title { font-size: 0.74rem !important; font-weight: 700 !important; color: #94a3b8 !important; text-transform: uppercase !important; padding: 4px 10px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; margin-bottom: 4px !important; }
+                .theater-menu-item { display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 7px 10px !important; font-size: 0.82rem !important; color: #e2e8f0 !important; border-radius: 6px !important; cursor: pointer !important; transition: all 0.15s ease !important; }
+                .theater-menu-item:hover { background: rgba(255, 255, 255, 0.12) !important; color: #ffffff !important; }
+                .theater-menu-item.active { background: #fa233b !important; color: #ffffff !important; font-weight: 700 !important; }
+                .theater-center-action { position: absolute !important; width: 80px !important; height: 80px !important; border-radius: 50% !important; background: rgba(0, 0, 0, 0.65) !important; backdrop-filter: blur(8px) !important; -webkit-backdrop-filter: blur(8px) !important; border: 2px solid rgba(255, 255, 255, 0.2) !important; display: flex !important; align-items: center !important; justify-content: center !important; color: #ffffff !important; opacity: 0 !important; transform: scale(0.7) !important; pointer-events: none !important; transition: all 0.25s ease !important; z-index: 50 !important; }
+                .theater-center-action.animate { opacity: 1 !important; transform: scale(1) !important; animation: centerPulse 0.5s ease-out forwards !important; }
+                @keyframes centerPulse { 0% { opacity: 1; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.1); } 100% { opacity: 0; transform: scale(1.25); } }
+                .theater-next-episode-banner { position: absolute !important; bottom: 90px !important; right: 32px !important; background: rgba(16, 18, 28, 0.95) !important; backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; border: 1px solid rgba(255, 255, 255, 0.18) !important; border-radius: 12px !important; padding: 14px 18px !important; box-shadow: 0 14px 36px rgba(0, 0, 0, 0.7) !important; display: none !important; align-items: center !important; gap: 14px !important; z-index: 150 !important; }
+                .theater-next-episode-banner.active { display: flex !important; }
+                .theater-resume-banner { position: absolute !important; top: 80px !important; left: 32px !important; background: rgba(16, 18, 28, 0.95) !important; backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; border: 1px solid rgba(255, 255, 255, 0.18) !important; border-radius: 10px !important; padding: 10px 16px !important; display: flex !important; align-items: center !important; gap: 12px !important; z-index: 150 !important; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6) !important; }
+            </style>
+
             <div class="theater-viewport" id="theater-viewport">
                 <video id="theater-video-player" class="theater-video-elem" playsinline preload="auto" crossorigin="anonymous">
                     <source src="${streamUrl}" type="video/mp4">
@@ -970,8 +1022,8 @@ const CinemaPlayer = {
                         <div id="theater-next-title" style="font-size:0.92rem; font-weight:700; color:#fff; margin-top:2px;"></div>
                         <div style="font-size:0.8rem; color:#22c55e; font-weight:600; margin-top:2px;">Playing in <span id="theater-next-countdown">10</span>s</div>
                     </div>
-                    <button onclick="CinemaPlayer.playNextEpisodeNow()" class="theater-exit-btn" style="background:var(--accent-color); border:none; padding:6px 14px; font-size:0.82rem;">Play Now</button>
-                    <button onclick="CinemaPlayer.cancelNextEpisode()" style="background:transparent; border:none; color:#888; cursor:pointer; font-size:1.1rem; padding:4px;">✕</button>
+                    <button onclick="CinemaPlayer.playNextEpisodeNow()" class="theater-exit-btn" style="background:#fa233b !important; border:none !important; padding:6px 14px !important; font-size:0.82rem !important;">Play Now</button>
+                    <button onclick="CinemaPlayer.cancelNextEpisode()" style="background:transparent !important; border:none !important; color:#888 !important; cursor:pointer !important; font-size:1.1rem !important; padding:4px !important;">✕</button>
                 </div>
 
                 <!-- Top Cinema Bar -->
@@ -1033,13 +1085,13 @@ const CinemaPlayer = {
                                 <span>10s</span>
                             </button>
 
-                            <button class="theater-skip-btn" id="theater-next-ep-btn" onclick="CinemaPlayer.playNextEpisodeNow()" style="${nextEpisodeInfo ? 'display:flex;' : 'display:none;'}" title="Next Episode">
+                            <button class="theater-skip-btn" id="theater-next-ep-btn" onclick="CinemaPlayer.playNextEpisodeNow()" style="${nextEpisodeInfo ? 'display:inline-flex;' : 'display:none;'}" title="Next Episode">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
                                 <span>Next Ep</span>
                             </button>
 
                             <div class="theater-volume-group">
-                                <button class="theater-icon-btn" onclick="CinemaPlayer.toggleMute()" title="Mute/Unmute (M)" style="width:34px; height:34px; background:transparent; border:none;">
+                                <button class="theater-icon-btn" onclick="CinemaPlayer.toggleMute()" title="Mute/Unmute (M)" style="width:34px !important; height:34px !important; background:transparent !important; border:none !important;">
                                     <svg id="theater-vol-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
                                 </button>
                                 <input type="range" class="theater-volume-slider" id="theater-volume-slider" min="0" max="1" step="0.02" value="1" oninput="CinemaPlayer.setVolume(this.value)">
@@ -1208,7 +1260,7 @@ const CinemaPlayer = {
         }
 
         // TV series next episode prompt 15 seconds before ending
-        if (this.nextEpisodeInfo && this.video.duration) {
+        if (this.nextEpisodeInfo && this.video.duration && this.video.duration > 30) {
             const timeLeft = this.video.duration - this.video.currentTime;
             if (timeLeft <= 15 && timeLeft > 0 && !this.nextEpTimeout) {
                 this.showNextEpisodeBanner();
@@ -1467,6 +1519,7 @@ const CinemaPlayer = {
         if (!banner || !titleElem) return;
 
         titleElem.textContent = this.nextEpisodeInfo.title || 'Next Episode';
+        banner.style.setProperty('display', 'flex', 'important');
         banner.classList.add('active');
         this.nextEpCountdown = 10;
 
@@ -1498,7 +1551,10 @@ const CinemaPlayer = {
             this.nextEpTimeout = null;
         }
         const banner = document.getElementById('theater-next-banner');
-        if (banner) banner.classList.remove('active');
+        if (banner) {
+            banner.classList.remove('active');
+            banner.style.setProperty('display', 'none', 'important');
+        }
     },
 
     restartFromBeginning() {

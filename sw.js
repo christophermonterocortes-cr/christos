@@ -1,5 +1,5 @@
 // CHRISTOS Service Worker
-const CACHE_NAME = 'christos-cache-v2.6.0';
+const CACHE_NAME = 'christos-cache-v2.6.1';
 
 self.addEventListener('install', (e) => {
     self.skipWaiting();
