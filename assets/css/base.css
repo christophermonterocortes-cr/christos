@@ -2599,3 +2599,246 @@ body.fullscreen-active #visualizer-container {
     transform: scale(1.2);
 }
 
+/* ============================================================
+   CINEMA & MOVIE POSTER GRID (2:3 PORTRAIT COVERS)
+   ============================================================ */
+.cinema-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding: 0 4px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.cinema-items-count {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-secondary, #94a3b8);
+    letter-spacing: 0.2px;
+}
+
+.cinema-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+}
+
+.cinema-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #fff;
+    padding: 7px 16px;
+    border-radius: 20px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.cinema-action-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+}
+
+.cinema-action-btn.primary {
+    background: var(--accent-color, #fa233b);
+    border-color: var(--accent-color, #fa233b);
+    color: #fff;
+    box-shadow: 0 4px 14px var(--accent-glow, rgba(250, 35, 59, 0.35));
+}
+
+.cinema-action-btn.primary:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 6px 18px var(--accent-glow, rgba(250, 35, 59, 0.5));
+}
+
+.cinema-action-btn.icon-only {
+    padding: 7px 10px;
+    border-radius: 50%;
+}
+
+.cinema-sort-dropdown {
+    position: relative;
+}
+
+.cinema-sort-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: rgba(20, 22, 34, 0.96);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    padding: 6px;
+    min-width: 190px;
+    z-index: 100;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+}
+
+.cinema-sort-menu.active {
+    display: block;
+    animation: menuFadeIn 0.2s ease-out;
+}
+
+@keyframes menuFadeIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.sort-menu-item {
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #d1d5db;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sort-menu-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.sort-menu-item.active {
+    background: var(--accent-color, #fa233b);
+    color: #fff;
+    font-weight: 700;
+}
+
+/* 2:3 POSTER GRID */
+.cinema-poster-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 24px 18px;
+}
+
+@media (min-width: 1400px) {
+    .cinema-poster-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 28px 22px;
+    }
+}
+
+.cinema-movie-card {
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.cinema-movie-card:hover {
+    transform: translateY(-5px);
+}
+
+.cinema-poster-art {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    background: #141622;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cinema-poster-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.cinema-movie-card:hover .cinema-poster-img {
+    transform: scale(1.05);
+}
+
+.movie-poster-badge {
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 5px;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    letter-spacing: 0.4px;
+}
+
+.movie-poster-badge.hdr {
+    background: rgba(234, 179, 8, 0.85);
+    color: #000;
+    border: none;
+}
+
+.cinema-play-hover {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 3;
+}
+
+.cinema-movie-card:hover .cinema-play-hover {
+    opacity: 1;
+}
+
+.cinema-play-circle {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--accent-color, #fa233b);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 18px var(--accent-glow, rgba(250, 35, 59, 0.5));
+    transform: scale(0.85);
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.cinema-movie-card:hover .cinema-play-circle {
+    transform: scale(1);
+}
+
+.cinema-movie-details {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.cinema-movie-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.25;
+}
+
+.cinema-movie-year {
+    font-size: 0.82rem;
+    color: var(--text-secondary, #94a3b8);
+    font-weight: 500;
+}
+
+

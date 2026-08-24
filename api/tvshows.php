@@ -85,6 +85,59 @@ function parseEpisodeInfo($filename) {
     ];
 }
 
+function cleanTvShowName($raw) {
+    $clean = preg_replace('/(\[.*?\]|\(.*?\))/', ' ', $raw);
+    $clean = preg_replace('/(S\d{1,2}|Season\s*\d{1,2}|1080p|2160p|4k|720p|uhd|bluray|web-dl|webrip|hdr|atmos|dts|x264|x265|hevc|ita|eng|latino|dual-lat).*$/i', '', $clean);
+    $clean = str_replace(['.', '_', '-'], ' ', $clean);
+    $clean = preg_replace('/\s+/', ' ', $clean);
+    $title = trim(ucwords(strtolower(trim($clean))));
+    return empty($title) ? $raw : $title;
+}
+
+function fetchOnlineTvMetadata($showName) {
+    // 1. Try TVMaze API
+    $q = urlencode($showName);
+    $url = "https://api.tvmaze.com/singlesearch/shows?q={$q}";
+    $ctx = stream_context_create(['http' => ['timeout' => 3, 'header' => "User-Agent: Mozilla/5.0\r\n"]]);
+    $res = @file_get_contents($url, false, $ctx);
+    if ($res) {
+        $data = json_decode($res, true);
+        if (!empty($data['image'])) {
+            $img = $data['image']['original'] ?? $data['image']['medium'] ?? null;
+            if ($img) {
+                return [
+                    'title' => $data['name'] ?? $showName,
+                    'poster' => $img,
+                    'rating' => !empty($data['rating']['average']) ? round($data['rating']['average'], 1) : '8.8',
+                    'overview' => strip_tags($data['summary'] ?? '')
+                ];
+            }
+        }
+    }
+
+    // 2. Try TMDB TV API
+    $keys = [
+        "b1523c14d9b4b0e408d66dc8ef0f0c05",
+        "4e44d9029b1270a757cddc766a1bcb63"
+    ];
+    foreach ($keys as $k) {
+        $url = "https://api.themoviedb.org/3/search/tv?api_key={$k}&query={$q}";
+        $res2 = @file_get_contents($url, false, $ctx);
+        if ($res2) {
+            $d2 = json_decode($res2, true);
+            if (!empty($d2['results'][0]['poster_path'])) {
+                return [
+                    'title' => $d2['results'][0]['name'] ?? $showName,
+                    'poster' => "https://image.tmdb.org/t/p/w780" . $d2['results'][0]['poster_path'],
+                    'rating' => !empty($d2['results'][0]['vote_average']) ? round($d2['results'][0]['vote_average'], 1) : '8.8',
+                    'overview' => $d2['results'][0]['overview'] ?? ''
+                ];
+            }
+        }
+    }
+    return null;
+}
+
 try {
     switch ($action) {
         case 'series':
@@ -120,13 +173,17 @@ try {
                         }
 
                         if (!isset($shows[$showName])) {
+                            $cleanTitle = cleanTvShowName($showName);
+                            $online = fetchOnlineTvMetadata($cleanTitle);
                             $shows[$showName] = [
-                                'name' => ucwords(trim(str_replace(['.', '_', '-'], ' ', $showName))),
+                                'name' => $online['title'] ?? $cleanTitle,
                                 'folder' => $showName,
                                 'episodes' => [],
                                 'seasons' => [],
                                 'sample_file' => $filePath,
-                                'total_size' => 0
+                                'total_size' => 0,
+                                'poster' => !empty($online['poster']) ? $online['poster'] : ("/api/tvshows.php?action=poster&file=" . urlencode($filePath)),
+                                'rating' => $online['rating'] ?? '8.8'
                             ];
                         }
 
@@ -147,8 +204,8 @@ try {
                     'season_count' => count($info['seasons']),
                     'episode_count' => count($info['episodes']),
                     'formatted_size' => round($info['total_size'] / (1024 * 1024 * 1024), 2) . ' GB',
-                    'poster' => "/api/tvshows.php?action=poster&file=" . urlencode($info['sample_file']),
-                    'rating' => '8.8'
+                    'poster' => $info['poster'],
+                    'rating' => $info['rating']
                 ];
             }
 

@@ -518,69 +518,158 @@ function playTvEpisode(epIdx) {
 }
 
 /* ============================================================
-   3. MOVIES & CINEMA THEATER VIEW (RESUME, SPEED & PiP)
+   3. MOVIES & CINEMA THEATER VIEW (ONLINE COVERS & POSTER GRID)
    ============================================================ */
-async function renderMoviesView() {
+window.currentMovieSort = window.currentMovieSort || 'title_asc';
+
+async function renderMoviesView(forceRefresh = false) {
     const viewContainer = document.getElementById('content-view');
+    viewContainer.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Searching & loading official movie covers...</p></div>';
+
     try {
-        const res = await fetch('/api/movies.php?action=list');
+        const url = forceRefresh ? '/api/movies.php?action=list&refresh=1' : '/api/movies.php?action=list';
+        const res = await fetch(url);
         currentMoviesList = await res.json();
 
-        let html = `
-            <div class="movies-hero" style="margin-bottom:18px;">
-                <div class="movies-hero-content">
-                    <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:8px;"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>TrueNAS Cinema & Theater</h2>
-                    <p>Stream high-bitrate 4K UHD, HDR, and 1080p movies directly from your /mnt/DISK_MAC/thecus media collection with resume playback and subtitle tracks.</p>
-                </div>
-                <div style="font-size:1rem; font-weight:700; color:#fff; background:rgba(0,0,0,0.5); padding:10px 18px; border-radius:12px; border:1px solid rgba(255,255,255,0.1);">
-                    ${currentMoviesList.length} Movies Available
-                </div>
+        applyMovieSort(window.currentMovieSort, false);
+        renderMoviesHtml();
+    } catch (e) {
+        viewContainer.innerHTML = '<div class="empty-state"><h3>Failed to load movies</h3><p>' + escapeHtml(e.message) + '</p></div>';
+    }
+}
+
+function applyMovieSort(sortType, reRender = true) {
+    window.currentMovieSort = sortType;
+    if (!currentMoviesList) return;
+
+    if (sortType === 'title_asc') {
+        currentMoviesList.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    } else if (sortType === 'title_desc') {
+        currentMoviesList.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+    } else if (sortType === 'year_desc') {
+        currentMoviesList.sort((a, b) => (b.year || 0) - (a.year || 0));
+    } else if (sortType === 'year_asc') {
+        currentMoviesList.sort((a, b) => (a.year || 0) - (b.year || 0));
+    } else if (sortType === 'rating_desc') {
+        currentMoviesList.sort((a, b) => parseFloat(b.rating || '0') - parseFloat(a.rating || '0'));
+    } else if (sortType === 'size_desc') {
+        currentMoviesList.sort((a, b) => (b.size || 0) - (a.size || 0));
+    }
+
+    if (reRender) renderMoviesHtml();
+}
+
+function renderMoviesHtml() {
+    const viewContainer = document.getElementById('content-view');
+    if (!currentMoviesList) return;
+
+    const sortLabels = {
+        'title_asc': 'Title ↑',
+        'title_desc': 'Title ↓',
+        'year_desc': 'Year ↓',
+        'year_asc': 'Year ↑',
+        'rating_desc': 'Rating ★',
+        'size_desc': 'Size ⤓'
+    };
+    const currentSortLabel = sortLabels[window.currentMovieSort] || 'Title ↑';
+
+    let html = `
+        <div class="cinema-topbar">
+            <div class="cinema-topbar-left">
+                <span class="cinema-items-count">${currentMoviesList.length} Items</span>
             </div>
-            <div class="movies-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 220px)); gap:16px;">
-        `;
+            <div class="cinema-topbar-right">
+                <button class="cinema-action-btn primary" onclick="playFirstMovie()" title="Play All">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                    <span>Play</span>
+                </button>
+                <button class="cinema-action-btn" onclick="playRandomMovie()" title="Shuffle Play">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                    <span>Shuffle</span>
+                </button>
+                <div class="cinema-sort-dropdown">
+                    <button class="cinema-action-btn" onclick="toggleMovieSortMenu(event)" title="Sort Movies">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="12" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 9 20 6 23 9"/><line x1="20" y1="6" x2="20" y2="18"/></svg>
+                        <span>${currentSortLabel}</span>
+                    </button>
+                    <div id="movie-sort-menu" class="cinema-sort-menu">
+                        <div class="sort-menu-item ${window.currentMovieSort==='title_asc'?'active':''}" onclick="applyMovieSort('title_asc')">Title (A to Z)</div>
+                        <div class="sort-menu-item ${window.currentMovieSort==='title_desc'?'active':''}" onclick="applyMovieSort('title_desc')">Title (Z to A)</div>
+                        <div class="sort-menu-item ${window.currentMovieSort==='year_desc'?'active':''}" onclick="applyMovieSort('year_desc')">Release Year (Newest)</div>
+                        <div class="sort-menu-item ${window.currentMovieSort==='year_asc'?'active':''}" onclick="applyMovieSort('year_asc')">Release Year (Oldest)</div>
+                        <div class="sort-menu-item ${window.currentMovieSort==='rating_desc'?'active':''}" onclick="applyMovieSort('rating_desc')">Rating (Highest)</div>
+                        <div class="sort-menu-item ${window.currentMovieSort==='size_desc'?'active':''}" onclick="applyMovieSort('size_desc')">File Size</div>
+                    </div>
+                </div>
+                <button class="cinema-action-btn icon-only" onclick="renderMoviesView(true)" title="Refresh Metadata & Posters Online">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </button>
+            </div>
+        </div>
 
-        if (!currentMoviesList || currentMoviesList.length === 0) {
-            html += `<div style="grid-column:1/-1; padding:60px; text-align:center; color:var(--text-secondary);">
-                <h3>No video files found in /mnt/DISK_MAC/thecus/LL/disk/media</h3>
-            </div>`;
-        } else {
-            currentMoviesList.forEach(movie => {
-                const posterUrl = movie.poster || ('/api/movies.php?action=poster&file=' + encodeURIComponent(movie.file_path));
-                const qualityBadge = '<span class="movie-badge quality">' + movie.quality + '</span>';
-                const hdrBadge = movie.hdr ? ('<span class="movie-badge hdr">' + movie.hdr + '</span>') : '';
-                const subBadge = (movie.subtitles && movie.subtitles.length > 0) ? ('<span class="movie-badge" style="background:#20bf6b;">CC (' + movie.subtitles.length + ')</span>') : '';
+        <div class="cinema-poster-grid">
+    `;
 
-                html += `
-                    <div class="movie-card" onclick="openTheaterModalById(${movie.id})" style="background:var(--bg-surface); border:1px solid var(--border-color); border-radius:12px; overflow:hidden; cursor:pointer;">
-                        <div class="movie-poster-wrap" style="position:relative; width:100%; aspect-ratio:16/9; background:#111; overflow:hidden;">
-                            <img class="movie-poster-img" src="${posterUrl}" alt="${escapeHtml(movie.title)}" loading="lazy" style="width:100%; height:100%; object-fit:cover;">
-                            <div class="movie-badge-group" style="position:absolute; top:8px; left:8px; display:flex; gap:4px; z-index:2;">
-                                ${qualityBadge}
-                                ${hdrBadge}
-                                ${subBadge}
-                            </div>
-                            <div class="movie-play-overlay">
-                                <div class="movie-play-btn" style="width:44px; height:44px; border-radius:50%; background:var(--accent-color); color:#fff; display:flex; align-items:center; justify-content:center;">
-                                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-                                </div>
-                            </div>
+    if (!currentMoviesList || currentMoviesList.length === 0) {
+        html += `<div style="grid-column:1/-1; padding:60px; text-align:center; color:var(--text-secondary);">
+            <h3>No video files found in media collection</h3>
+        </div>`;
+    } else {
+        currentMoviesList.forEach(movie => {
+            const posterUrl = movie.poster || ('/api/movies.php?action=poster&file=' + encodeURIComponent(movie.file_path));
+            const qualityBadge = movie.quality ? `<span class="movie-poster-badge">${movie.quality}</span>` : '';
+            const hdrBadge = movie.hdr ? `<span class="movie-poster-badge hdr">${movie.hdr}</span>` : '';
+
+            html += `
+                <div class="cinema-movie-card" onclick="openTheaterModalById(${movie.id})" title="${escapeHtml(movie.title)}${movie.year ? ' ('+movie.year+')' : ''}">
+                    <div class="cinema-poster-art">
+                        <img class="cinema-poster-img" src="${posterUrl}" alt="${escapeHtml(movie.title)}" loading="lazy" onerror="this.onerror=null; this.src='/api/movies.php?action=poster&file=${encodeURIComponent(movie.file_path)}';">
+                        <div class="movie-badge-group">
+                            ${qualityBadge}
+                            ${hdrBadge}
                         </div>
-                        <div class="movie-info" style="padding:10px 12px;">
-                            <div class="movie-title" title="${escapeHtml(movie.title)}" style="font-size:0.9rem; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(movie.title)}</div>
-                            <div class="movie-meta-row" style="display:flex; justify-content:space-between; margin-top:4px; font-size:0.78rem; color:var(--text-secondary);">
-                                <span>${movie.year || 'Movie'} • ${movie.formatted_size}</span>
-                                <span style="color:#ffbb00; font-weight:700;">★ ${movie.rating || '8.5'}</span>
+                        <div class="cinema-play-hover">
+                            <div class="cinema-play-circle">
+                                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
                             </div>
                         </div>
                     </div>
-                `;
-            });
-        }
+                    <div class="cinema-movie-details">
+                        <div class="cinema-movie-title">${escapeHtml(movie.title)}</div>
+                        <div class="cinema-movie-year">${movie.year ? movie.year : (movie.formatted_size || 'Movie')}</div>
+                    </div>
+                </div>
+            `;
+        });
+    }
 
-        html += `</div>`;
-        viewContainer.innerHTML = html;
-    } catch (e) {
-        viewContainer.innerHTML = '<div class="empty-state"><h3>Failed to load movies</h3><p>' + escapeHtml(e.message) + '</p></div>';
+    html += `</div>`;
+    viewContainer.innerHTML = html;
+}
+
+function toggleMovieSortMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('movie-sort-menu');
+    if (menu) {
+        menu.classList.toggle('active');
+    }
+}
+
+document.addEventListener('click', () => {
+    const menu = document.getElementById('movie-sort-menu');
+    if (menu) menu.classList.remove('active');
+});
+
+function playFirstMovie() {
+    if (currentMoviesList && currentMoviesList.length > 0) {
+        openTheaterModalById(currentMoviesList[0].id);
+    }
+}
+
+function playRandomMovie() {
+    if (currentMoviesList && currentMoviesList.length > 0) {
+        const randIdx = Math.floor(Math.random() * currentMoviesList.length);
+        openTheaterModalById(currentMoviesList[randIdx].id);
     }
 }
 
