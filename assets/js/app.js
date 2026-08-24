@@ -253,14 +253,28 @@ function renderCapsulesHtml(tracks) {
     let html = '';
     tracks.forEach((track, idx) => {
         const artUrl = '/api/library.php?action=art&album_id=' + track.album_id;
+        const rating = parseInt(track.rating || 0, 10);
+        const isFav = !!(track.is_favorite == 1 || track.is_favorite === true);
+        const rgGain = (track.replaygain_track_gain !== null && track.replaygain_track_gain !== undefined) ? parseFloat(track.replaygain_track_gain) : null;
+
         html += `
             <div class="capsule-card" onclick="playTrackFromCapsule(${idx})" title="${escapeHtml(track.title)} - ${escapeHtml(track.artist)}">
                 <div class="capsule-art-wrap">
                     <img class="capsule-art-img" src="${artUrl}" alt="${escapeHtml(track.title)}" loading="lazy" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
+                    ${isFav ? `<div class="capsule-fav-indicator"><svg viewBox="0 0 24 24" width="12" height="12" fill="var(--accent-color)" stroke="var(--accent-color)" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>` : ''}
+                    ${rating > 0 ? `<div class="capsule-rating-badge">★ ${rating}</div>` : ''}
+                    ${rgGain !== null ? `<div class="capsule-rg-badge">${rgGain >= 0 ? '+' : ''}${rgGain.toFixed(1)}dB</div>` : ''}
                 </div>
                 <div class="capsule-info">
                     <div class="capsule-title">${escapeHtml(track.title)}</div>
                     <div class="capsule-artist">${escapeHtml(track.artist)}</div>
+                </div>
+                <div class="capsule-actions" onclick="event.stopPropagation()">
+                    <div class="track-stars-${track.id} capsule-stars">
+                        ${[1, 2, 3, 4, 5].map(s => `
+                            <span class="star-icon ${s <= rating ? 'active' : ''}" data-star="${s}" onclick="rateTrack(${track.id}, ${s})" style="color:${s <= rating ? '#f59e0b' : 'rgba(255,255,255,0.2)'}; cursor:pointer; font-size:12px;">★</span>
+                        `).join('')}
+                    </div>
                 </div>
                 <div class="capsule-play-hover">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
@@ -278,14 +292,16 @@ function playTrackFromCapsule(trackIndex) {
 }
 
 /* ============================================================
-   SORT BY ENGINE (17 MODES MATCHING USER SCREENSHOT)
+   SORT BY ENGINE (19 MODES)
    ============================================================ */
 const SORT_FIELDS = [
     { key: 'album', label: 'Album' },
     { key: 'album_artist', label: 'Album Artist' },
     { key: 'artist', label: 'Artist' },
     { key: 'bitrate', label: 'Bitrate' },
+    { key: 'rating', label: '5-Star Rating' },
     { key: 'community_rating', label: 'Community Rating' },
+    { key: 'replaygain', label: 'ReplayGain (Loudness)' },
     { key: 'composer', label: 'Composer' },
     { key: 'container', label: 'Container' },
     { key: 'date_added', label: 'Date Added' },
@@ -332,7 +348,7 @@ function setSortField(field) {
         currentSortAsc = !currentSortAsc;
     } else {
         currentSortField = field;
-        currentSortAsc = true;
+        currentSortAsc = (field !== 'rating'); // Default descending for ratings
     }
 
     applyCurrentSort(true);
@@ -353,6 +369,8 @@ function applyCurrentSort(updateDom = true) {
             else if (currentSortField === 'artist') { valA = a.artist || ''; valB = b.artist || ''; }
             else if (currentSortField === 'album') { valA = a.album || ''; valB = b.album || ''; }
             else if (currentSortField === 'album_artist') { valA = a.album_artist || a.artist || ''; valB = b.album_artist || b.artist || ''; }
+            else if (currentSortField === 'rating' || currentSortField === 'community_rating') { valA = a.rating || 0; valB = b.rating || 0; }
+            else if (currentSortField === 'replaygain') { valA = a.replaygain_track_gain || 0; valB = b.replaygain_track_gain || 0; }
             else if (currentSortField === 'runtime') { valA = a.duration || 0; valB = b.duration || 0; }
             else if (currentSortField === 'number') { valA = a.track_number || 0; valB = b.track_number || 0; }
             else if (currentSortField === 'container') { valA = a.format || ''; valB = b.format || ''; }
@@ -1399,35 +1417,43 @@ async function renderArtistsView() {
 
 async function openArtistDetail(artistId, artistName) {
     const viewContainer = document.getElementById('content-view');
-    viewContainer.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Loading artist details & bio...</p></div>';
+    viewContainer.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Loading artist details, bio & artwork...</p></div>';
 
     try {
-        const res = await fetch('/api/library.php?action=artist_detail&id=' + artistId + '&name=' + encodeURIComponent(artistName));
+        const res = await fetch('/api/enrichment.php?action=artist_info&artist_id=' + artistId + '&name=' + encodeURIComponent(artistName));
         const data = await res.json();
 
         let totalDuration = 0;
         if (data.tracks) data.tracks.forEach(t => totalDuration += (t.duration || 0));
 
+        const bannerUrl = data.banner_art || data.art_path || 'assets/img/default-artist.svg';
+        const profileArtUrl = data.art_path || bannerUrl;
+
         let html = `
-            <div class="album-detail-view">
+            <div class="artist-detail-view">
                 <button class="back-btn" onclick="loadView('artists')">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
                     <span>Back to Artists</span>
                 </button>
 
-                <div class="album-detail-header" style="margin-top:16px;">
-                    <div class="album-detail-art-wrap" style="border-radius:50%;">
-                        <img class="album-detail-art" src="assets/img/default-artist.svg" alt="${escapeHtml(data.name)}" style="border-radius:50%;">
-                    </div>
-                    <div class="album-detail-info">
-                        <span class="meta-label">ARTIST SPOTLIGHT</span>
-                        <h1 class="album-detail-title">${escapeHtml(data.name)}</h1>
-                        <div class="album-detail-meta">
-                            ${data.albums ? data.albums.length : 0} Albums • ${data.tracks ? data.tracks.length : 0} Tracks • ${formatDuration(totalDuration)}
+                <!-- Artist Hero Banner -->
+                <div class="artist-hero-card" style="position:relative; margin-top:16px; border-radius:18px; overflow:hidden; min-height:240px; display:flex; align-items:flex-end; padding:28px; background:linear-gradient(0deg, rgba(6,7,12,0.95) 0%, rgba(6,7,12,0.4) 60%, rgba(6,7,12,0.2) 100%), url('${bannerUrl}') center/cover no-repeat; border:1px solid rgba(255,255,255,0.1);">
+                    <div style="display:flex; align-items:center; gap:24px; z-index:2; width:100%;">
+                        <img src="${profileArtUrl}" alt="${escapeHtml(data.name)}" style="width:110px; height:110px; border-radius:50%; object-fit:cover; border:3px solid rgba(255,255,255,0.3); box-shadow:0 8px 24px rgba(0,0,0,0.5);" onerror="this.onerror=null; this.src='assets/img/default-artist.svg';">
+                        <div style="flex:1;">
+                            <span style="font-size:0.75rem; font-weight:800; letter-spacing:1.5px; color:var(--accent-color);">ARTIST SPOTLIGHT</span>
+                            <h1 style="font-size:2.2rem; font-weight:900; color:#fff; margin:4px 0 8px 0; text-shadow:0 2px 10px rgba(0,0,0,0.8);">${escapeHtml(data.name)}</h1>
+                            <div style="font-size:0.9rem; color:rgba(255,255,255,0.8); display:flex; gap:16px;">
+                                <span>${data.albums ? data.albums.length : 0} Albums</span>
+                                <span>•</span>
+                                <span>${data.tracks ? data.tracks.length : 0} Lossless Tracks</span>
+                                <span>•</span>
+                                <span>${formatDuration(totalDuration)}</span>
+                            </div>
                         </div>
-                        <div class="album-detail-actions">
+                        <div style="display:flex; gap:12px;">
                             ${data.tracks && data.tracks.length > 0 ? `
-                                <button class="btn btn-primary" onclick="playAllArtistTracks()">
+                                <button class="btn btn-primary" onclick="playAllArtistTracks()" style="padding:10px 22px; font-weight:700;">
                                     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
                                     <span>Play All Tracks</span>
                                 </button>
@@ -1436,13 +1462,18 @@ async function openArtistDetail(artistId, artistName) {
                     </div>
                 </div>
 
-                <div class="downloader-card" style="margin:20px 0;">
-                    <h3 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:8px;">Biography & History</h3>
-                    <p style="color:var(--text-secondary); line-height:1.6; font-size:0.92rem;">${escapeHtml(data.bio)}</p>
+                <!-- Biography Section -->
+                <div class="downloader-card" style="margin:20px 0; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:18px 22px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <h3 style="font-size:1.05rem; font-weight:700; color:#fff;">Biography & Profile</h3>
+                        <span style="font-size:0.75rem; color:var(--text-secondary);">Deezer / Wikipedia</span>
+                    </div>
+                    <p style="color:var(--text-secondary); line-height:1.65; font-size:0.92rem;">${escapeHtml(data.bio)}</p>
                 </div>
 
-                <div class="view-header">
-                    <h3>Tracks (${data.tracks ? data.tracks.length : 0})</h3>
+                <!-- Artist Tracks -->
+                <div class="view-header" style="margin-top:24px;">
+                    <h3 style="font-size:1.2rem; font-weight:800; color:#fff;">Lossless Tracks (${data.tracks ? data.tracks.length : 0})</h3>
                 </div>
                 <div class="capsule-grid">
                     ${renderCapsulesHtml(data.tracks || [])}
@@ -1463,18 +1494,96 @@ function playAllArtistTracks() {
     }
 }
 
-function renderSettingsView() {
+async function renderSettingsView() {
     const savedTheme = localStorage.getItem('christos_theme') || 'apple';
-    const savedViz = localStorage.getItem('christos_default_viz') || '7';
-    const savedFft = localStorage.getItem('christos_fft_size') || '512';
+    const viewContainer = document.getElementById('content-view');
 
-    document.getElementById('content-view').innerHTML = `
+    // Fetch scrobble settings
+    let scrobbleData = { lastfm: {}, listenbrainz: {} };
+    try {
+        const res = await fetch('/api/enrichment.php?action=get_scrobble_settings');
+        scrobbleData = await res.json();
+    } catch (e) {}
+
+    viewContainer.innerHTML = `
         <div class="view-header">
-            <h2>Settings</h2>
-            <p style="color:var(--text-secondary); margin-top:4px;">Configure themes, visualizers, DSP studio, and media paths</p>
+            <h2>Settings & Discovery</h2>
+            <p style="color:var(--text-secondary); margin-top:4px;">Configure scrobbling, ReplayGain loudness normalization, themes, and server info</p>
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:20px;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:20px;">
+            <!-- Scrobbling & Play History Sync Card -->
+            <div class="downloader-card">
+                <h3 style="font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-color)" stroke-width="2" style="vertical-align:middle; margin-right:6px;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                        Scrobbling (Last.fm & ListenBrainz)
+                    </span>
+                    <span id="scrobble-save-badge" style="font-size:0.75rem; padding:2px 8px; border-radius:10px; background:rgba(32,191,107,0.2); color:#20bf6b; display:none;">Saved!</span>
+                </h3>
+
+                <!-- Last.fm Section -->
+                <div style="margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.06);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <label style="font-weight:700; color:#fff; font-size:0.92rem; display:flex; align-items:center; gap:6px;">
+                            <span style="color:#d51007; font-weight:900;">Last.fm</span> Scrobbling
+                        </label>
+                        <input type="checkbox" id="setting-lastfm-enabled" ${scrobbleData.lastfm?.enabled ? 'checked' : ''} onchange="saveScrobblerSettings()">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px; font-size:0.85rem;">
+                        <input type="text" id="setting-lastfm-user" class="form-input" placeholder="Last.fm Username" value="${escapeHtml(scrobbleData.lastfm?.username || '')}" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
+                        <input type="text" id="setting-lastfm-key" class="form-input" placeholder="Last.fm API Key (Optional)" value="" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
+                        <input type="password" id="setting-lastfm-session" class="form-input" placeholder="Last.fm Session Key (sk)" value="" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
+                    </div>
+                </div>
+
+                <!-- ListenBrainz Section -->
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <label style="font-weight:700; color:#fff; font-size:0.92rem; display:flex; align-items:center; gap:6px;">
+                            <span style="color:#eb743b; font-weight:900;">ListenBrainz</span> Scrobbling
+                        </label>
+                        <input type="checkbox" id="setting-listenbrainz-enabled" ${scrobbleData.listenbrainz?.enabled ? 'checked' : ''} onchange="saveScrobblerSettings()">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px; font-size:0.85rem;">
+                        <input type="password" id="setting-listenbrainz-token" class="form-input" placeholder="ListenBrainz User Token" value="${escapeHtml(scrobbleData.listenbrainz?.token_masked || '')}" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="saveScrobblerSettings()" style="width:100%; margin-top:14px; padding:8px 16px;">
+                    Save Scrobbler Credentials
+                </button>
+            </div>
+
+            <!-- ReplayGain Loudness Engine Card -->
+            <div class="downloader-card">
+                <h3 style="font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-color)" stroke-width="2" style="vertical-align:middle; margin-right:6px;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                    ReplayGain & Loudness Normalization
+                </h3>
+                <div style="display:flex; flex-direction:column; gap:14px; font-size:0.9rem;">
+                    <div>
+                        <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600; display:block; margin-bottom:6px;">Default Normalization Mode</label>
+                        <select class="form-select" onchange="DSP.setReplayGainMode(this.value)">
+                            <option value="track" ${DSP.replayGainMode==='track'?'selected':''}>Track Gain (Equalize each song)</option>
+                            <option value="album" ${DSP.replayGainMode==='album'?'selected':''}>Album Gain (Preserve album dynamics)</option>
+                            <option value="off" ${DSP.replayGainMode==='off'?'selected':''}>Disabled (Original volume)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600;">Pre-Amp Volume Adjustment</label>
+                            <span style="font-weight:700; color:#fff;">${DSP.preampDb > 0 ? '+' : ''}${DSP.preampDb.toFixed(1)} dB</span>
+                        </div>
+                        <input type="range" min="-6" max="6" step="0.5" value="${DSP.preampDb}" oninput="DSP.setPreamp(this.value)" style="width:100%;">
+                    </div>
+                    <label style="display:flex; align-items:center; gap:8px; color:var(--text-secondary); cursor:pointer; font-weight:600;">
+                        <input type="checkbox" ${DSP.antiClipping?'checked':''} onchange="DSP.toggleAntiClipping(this.checked)">
+                        Anti-Clipping Peak Limiter (Prevents digital distortion)
+                    </label>
+                </div>
+            </div>
+
             <!-- Themes Card -->
             <div class="downloader-card">
                 <h3 style="font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
@@ -1515,12 +1624,40 @@ function renderSettingsView() {
                 <div style="display:flex; flex-direction:column; gap:10px; color:var(--text-secondary); font-size:0.9rem;">
                     <div style="display:flex; justify-content:space-between;"><span>Host</span><span style="color:#fff; font-weight:600;">TrueNAS SCALE</span></div>
                     <div style="display:flex; justify-content:space-between;"><span>LAN Address</span><span style="color:#fff; font-weight:600;">192.168.0.245:16010</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Universal Downloader</span><span style="color:#20bf6b; font-weight:600;">/mnt/DISK_MAC/everything/universal-downloader</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>TV Shows Path</span><span style="color:#fff; font-weight:600;">/mnt/DISK_MAC/thecus/LL/disk/Series(TVshows)</span></div>
+                    <div style="display:flex; justify-content:space-between;"><span>Version</span><span style="color:var(--accent-color); font-weight:700;">CHRISTOS v2.5.0</span></div>
                 </div>
             </div>
         </div>
     `;
+}
+
+async function saveScrobblerSettings() {
+    const payload = {
+        lastfm_enabled: document.getElementById('setting-lastfm-enabled')?.checked,
+        lastfm_username: document.getElementById('setting-lastfm-user')?.value,
+        lastfm_api_key: document.getElementById('setting-lastfm-key')?.value,
+        lastfm_session_key: document.getElementById('setting-lastfm-session')?.value,
+        listenbrainz_enabled: document.getElementById('setting-listenbrainz-enabled')?.checked,
+        listenbrainz_token: document.getElementById('setting-listenbrainz-token')?.value
+    };
+
+    try {
+        const res = await fetch('/api/enrichment.php?action=save_scrobble_settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            const badge = document.getElementById('scrobble-save-badge');
+            if (badge) {
+                badge.style.display = 'inline-block';
+                setTimeout(() => { badge.style.display = 'none'; }, 3000);
+            }
+        }
+    } catch (e) {
+        alert('Failed to save scrobbler settings: ' + e.message);
+    }
 }
 
 function triggerLibraryRescan() {

@@ -52,12 +52,38 @@ try {
             break;
 
         case 'albums':
+            $sort = $_GET['sort'] ?? 'title_asc';
+            $filter = $_GET['filter'] ?? '';
+            $minRating = (int)($_GET['min_rating'] ?? 0);
+
+            $orderSql = "a.title ASC";
+            if ($sort === 'rating_desc') $orderSql = "a.rating DESC, a.title ASC";
+            elseif ($sort === 'artist_asc') $orderSql = "ar.name ASC, a.title ASC";
+            elseif ($sort === 'year_desc') $orderSql = "a.year DESC, a.title ASC";
+
+            $whereConds = [];
+            $albumParams = [];
+            if ($libWhere) {
+                $whereConds[] = "t.library_tag = :lib";
+                $albumParams['lib'] = $libraryFilter;
+            }
+            if ($filter === 'favorites') {
+                $whereConds[] = "a.is_favorite = 1";
+            }
+            if ($filter === 'rated' || $minRating > 0) {
+                $whereConds[] = "a.rating >= " . max(1, $minRating);
+            }
+
+            $whereSql = count($whereConds) > 0 ? " WHERE " . implode(" AND ", $whereConds) : "";
+
             $query = "
                 SELECT 
                     a.id, 
                     a.title, 
                     a.year, 
                     a.art_path,
+                    a.rating,
+                    a.is_favorite,
                     ar.name AS artist,
                     ar.id AS artist_id,
                     COUNT(t.id) AS track_count,
@@ -68,23 +94,19 @@ try {
                 FROM albums a
                 JOIN artists ar ON a.artist_id = ar.id
                 JOIN tracks t ON a.id = t.album_id
-                " . ($libWhere ? " WHERE t.library_tag = :lib " : "") . "
-                GROUP BY a.id, a.title, a.year, a.art_path, ar.name, ar.id
-                ORDER BY a.title ASC
+                {$whereSql}
+                GROUP BY a.id, a.title, a.year, a.art_path, a.rating, a.is_favorite, ar.name, ar.id
+                ORDER BY {$orderSql}
             ";
             $stmt = $db->prepare($query);
-            if ($libWhere) {
-                $stmt->execute(['lib' => $libraryFilter]);
-            } else {
-                $stmt->execute();
-            }
+            $stmt->execute($albumParams);
             echo json_encode($stmt->fetchAll());
             break;
 
         case 'album':
             $album_id = (int)($_GET['album_id'] ?? 0);
             $stmt = $db->prepare("
-                SELECT a.id, a.title, a.year, a.art_path, ar.name AS artist, ar.id AS artist_id
+                SELECT a.id, a.title, a.year, a.art_path, a.rating, a.is_favorite, ar.name AS artist, ar.id AS artist_id
                 FROM albums a
                 JOIN artists ar ON a.artist_id = ar.id
                 WHERE a.id = ?
@@ -99,7 +121,7 @@ try {
 
             $trackQuery = "
                 SELECT t.*, ar.name AS artist, a.title AS album_title, l.id AS lyric_id, l.is_synced,
-                       (CASE WHEN f.track_id IS NOT NULL THEN 1 ELSE 0 END) AS is_favorite
+                       (CASE WHEN f.track_id IS NOT NULL OR t.is_favorite = 1 THEN 1 ELSE 0 END) AS is_favorite
                 FROM tracks t
                 JOIN albums a ON t.album_id = a.id
                 JOIN artists ar ON a.artist_id = ar.id
@@ -124,13 +146,17 @@ try {
                     ar.id, 
                     ar.name, 
                     ar.art_path,
+                    ar.bio,
+                    ar.banner_art,
+                    ar.tags,
+                    ar.genres,
                     COUNT(DISTINCT a.id) AS album_count,
                     COUNT(t.id) AS track_count
                 FROM artists ar
                 JOIN albums a ON ar.id = a.artist_id
                 JOIN tracks t ON a.id = t.album_id
                 " . ($libWhere ? " WHERE t.library_tag = :lib " : "") . "
-                GROUP BY ar.id, ar.name, ar.art_path
+                GROUP BY ar.id, ar.name, ar.art_path, ar.bio, ar.banner_art, ar.tags, ar.genres
                 ORDER BY ar.name ASC
             ";
             $stmt = $db->prepare($query);
@@ -158,7 +184,7 @@ try {
                 FROM albums a
                 JOIN tracks t ON a.id = t.album_id
                 WHERE a.artist_id = ? " . ($libWhere ? " AND t.library_tag = :lib " : "") . "
-                GROUP BY a.id, a.title, a.year, a.art_path, a.artist_id
+                GROUP BY a.id, a.title, a.year, a.art_path, a.rating, a.is_favorite, a.artist_id
                 ORDER BY a.year DESC, a.title ASC
             ");
             if ($libWhere) {
@@ -172,6 +198,16 @@ try {
 
         case 'tracks':
             $album_id = isset($_GET['album_id']) ? (int)$_GET['album_id'] : 0;
+            $sort = $_GET['sort'] ?? 'title_asc';
+            $filter = $_GET['filter'] ?? '';
+            $minRating = (int)($_GET['min_rating'] ?? 0);
+
+            $orderSql = "t.title ASC";
+            if ($sort === 'rating_desc') $orderSql = "t.rating DESC, t.title ASC";
+            elseif ($sort === 'artist_asc') $orderSql = "ar.name ASC, t.title ASC";
+            elseif ($sort === 'album_asc') $orderSql = "a.title ASC, t.track_number ASC";
+            elseif ($sort === 'duration_desc') $orderSql = "t.duration DESC";
+
             $whereClause = [];
             $params = [];
 
@@ -183,19 +219,25 @@ try {
                 $whereClause[] = "t.library_tag = ?";
                 $params[] = $libraryFilter;
             }
+            if ($filter === 'favorites') {
+                $whereClause[] = "(f.track_id IS NOT NULL OR t.is_favorite = 1)";
+            }
+            if ($filter === 'rated' || $minRating > 0) {
+                $whereClause[] = "t.rating >= " . max(1, $minRating);
+            }
 
             $whereSql = count($whereClause) > 0 ? " WHERE " . implode(" AND ", $whereClause) : "";
 
             $stmt = $db->prepare("
                 SELECT t.*, a.title AS album, a.art_path AS album_art, ar.name AS artist, l.id AS lyric_id, l.is_synced,
-                       (CASE WHEN f.track_id IS NOT NULL THEN 1 ELSE 0 END) AS is_favorite
+                       (CASE WHEN f.track_id IS NOT NULL OR t.is_favorite = 1 THEN 1 ELSE 0 END) AS is_favorite
                 FROM tracks t
                 JOIN albums a ON t.album_id = a.id
                 JOIN artists ar ON a.artist_id = ar.id
                 LEFT JOIN lyrics l ON t.id = l.track_id
                 LEFT JOIN favorites f ON t.id = f.track_id AND f.user_id = 1
                 {$whereSql}
-                ORDER BY t.title ASC
+                ORDER BY {$orderSql}
                 LIMIT 500
             ");
             $stmt->execute($params);
@@ -296,11 +338,102 @@ try {
             ]);
             break;
 
+        case 'rate_track':
+            $track_id = (int)($_POST['track_id'] ?? $_GET['track_id'] ?? 0);
+            $rating = max(0, min(5, (int)($_POST['rating'] ?? $_GET['rating'] ?? 0)));
+            if ($track_id <= 0) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Valid track_id required']);
+                break;
+            }
+            $stmt = $db->prepare("UPDATE tracks SET rating = ? WHERE id = ?");
+            $stmt->execute([$rating, $track_id]);
+            echo json_encode(['success' => true, 'track_id' => $track_id, 'rating' => $rating]);
+            break;
+
+        case 'rate_album':
+            $album_id = (int)($_POST['album_id'] ?? $_GET['album_id'] ?? 0);
+            $rating = max(0, min(5, (int)($_POST['rating'] ?? $_GET['rating'] ?? 0)));
+            if ($album_id <= 0) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Valid album_id required']);
+                break;
+            }
+            $stmt = $db->prepare("UPDATE albums SET rating = ? WHERE id = ?");
+            $stmt->execute([$rating, $album_id]);
+            echo json_encode(['success' => true, 'album_id' => $album_id, 'rating' => $rating]);
+            break;
+
+        case 'toggle_favorite':
+            $rawInput = json_decode(file_get_contents('php://input'), true) ?: [];
+            $type = strtolower($rawInput['type'] ?? $_POST['type'] ?? $_GET['type'] ?? 'track');
+            $id = (int)($rawInput['id'] ?? $_POST['id'] ?? $_GET['id'] ?? 0);
+            $track_id = (int)($rawInput['track_id'] ?? $_POST['track_id'] ?? $_GET['track_id'] ?? ($type === 'track' ? $id : 0));
+            $album_id = (int)($rawInput['album_id'] ?? $_POST['album_id'] ?? $_GET['album_id'] ?? ($type === 'album' ? $id : 0));
+
+            if ($track_id > 0) {
+                $check = $db->prepare("SELECT 1 FROM favorites WHERE user_id = 1 AND track_id = ?");
+                $check->execute([$track_id]);
+                $isFav = $check->fetchColumn();
+
+                if ($isFav) {
+                    $del = $db->prepare("DELETE FROM favorites WHERE user_id = 1 AND track_id = ?");
+                    $del->execute([$track_id]);
+                    $up = $db->prepare("UPDATE tracks SET is_favorite = 0 WHERE id = ?");
+                    $up->execute([$track_id]);
+                    $newFav = false;
+                } else {
+                    $ins = $db->prepare("INSERT OR IGNORE INTO favorites (user_id, track_id) VALUES (1, ?)");
+                    $ins->execute([$track_id]);
+                    $up = $db->prepare("UPDATE tracks SET is_favorite = 1 WHERE id = ?");
+                    $up->execute([$track_id]);
+                    $newFav = true;
+                }
+                echo json_encode(['success' => true, 'track_id' => $track_id, 'is_favorite' => $newFav]);
+            } elseif ($album_id > 0) {
+                $stmtAlb = $db->prepare("SELECT is_favorite FROM albums WHERE id = ?");
+                $stmtAlb->execute([$album_id]);
+                $cur = (int)$stmtAlb->fetchColumn();
+                $newFav = ($cur === 1) ? 0 : 1;
+                $up = $db->prepare("UPDATE albums SET is_favorite = ? WHERE id = ?");
+                $up->execute([$newFav, $album_id]);
+                echo json_encode(['success' => true, 'album_id' => $album_id, 'is_favorite' => (bool)$newFav]);
+            } else {
+                http_response_code(400);
+                echo json_encode(['error' => 'Valid track_id or album_id required']);
+            }
+            break;
+
         case 'lyrics':
             $track_id = (int)($_GET['track_id'] ?? 0);
             $stmt = $db->prepare("SELECT * FROM lyrics WHERE track_id = ?");
             $stmt->execute([$track_id]);
             $lyric = $stmt->fetch();
+
+            if ($lyric && !empty($lyric['lrc_text'])) {
+                echo json_encode($lyric);
+                break;
+            }
+
+            // If missing in DB, check track file sidecars (.lrc, .srt, .ttml, .xml, .txt)
+            if ($track_id > 0) {
+                $stmtTrack = $db->prepare("SELECT file_path FROM tracks WHERE id = ?");
+                $stmtTrack->execute([$track_id]);
+                $filePath = $stmtTrack->fetchColumn();
+                if ($filePath && file_exists($filePath)) {
+                    require_once __DIR__ . '/../includes/metadata.php';
+                    $sidecar = AudioMetadata::findSidecarLyrics($filePath);
+                    if ($sidecar && !empty($sidecar['text'])) {
+                        $del = $db->prepare("DELETE FROM lyrics WHERE track_id = ?");
+                        $del->execute([$track_id]);
+                        $ins = $db->prepare("INSERT INTO lyrics (track_id, lrc_text, is_synced) VALUES (?, ?, ?)");
+                        $ins->execute([$track_id, $sidecar['text'], $sidecar['is_synced']]);
+                        echo json_encode(['track_id' => $track_id, 'lrc_text' => $sidecar['text'], 'is_synced' => (bool)$sidecar['is_synced'], 'source' => $sidecar['source']]);
+                        break;
+                    }
+                }
+            }
+
             echo json_encode($lyric ?: ['lrc_text' => null, 'is_synced' => false]);
             break;
 
@@ -475,37 +608,6 @@ try {
             ");
             $stmt->execute();
             echo json_encode($stmt->fetchAll());
-            break;
-
-        case 'toggle_favorite':
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-                http_response_code(405);
-                echo json_encode(['error' => 'POST required']);
-                break;
-            }
-            $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
-            $track_id = (int)($data['track_id'] ?? 0);
-
-            if ($track_id <= 0) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Valid track_id required']);
-                break;
-            }
-
-            // Check if favorited
-            $stmtCheck = $db->prepare("SELECT 1 FROM favorites WHERE user_id = 1 AND track_id = ?");
-            $stmtCheck->execute([$track_id]);
-            $isFav = (bool)$stmtCheck->fetch();
-
-            if ($isFav) {
-                $stmtDel = $db->prepare("DELETE FROM favorites WHERE user_id = 1 AND track_id = ?");
-                $stmtDel->execute([$track_id]);
-                echo json_encode(['success' => true, 'is_favorite' => false]);
-            } else {
-                $stmtAdd = $db->prepare("INSERT INTO favorites (user_id, track_id) VALUES (1, ?)");
-                $stmtAdd->execute([$track_id]);
-                echo json_encode(['success' => true, 'is_favorite' => true]);
-            }
             break;
 
         case 'save_lyrics':

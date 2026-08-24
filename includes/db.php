@@ -72,7 +72,11 @@ function init_sqlite_schema($pdo) {
     CREATE TABLE IF NOT EXISTS artists (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        art_path TEXT
+        art_path TEXT,
+        bio TEXT,
+        banner_art TEXT,
+        tags TEXT,
+        genres TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_artist_name ON artists(name);
     
@@ -82,6 +86,8 @@ function init_sqlite_schema($pdo) {
         title TEXT NOT NULL,
         year INTEGER,
         art_path TEXT,
+        rating INTEGER DEFAULT 0,
+        is_favorite INTEGER DEFAULT 0,
         FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_album_artist ON albums(artist_id);
@@ -98,11 +104,16 @@ function init_sqlite_schema($pdo) {
         duration INTEGER,
         track_number INTEGER,
         library_tag TEXT DEFAULT 'flac',
+        rating INTEGER DEFAULT 0,
+        is_favorite INTEGER DEFAULT 0,
+        replaygain_track_gain REAL,
+        replaygain_track_peak REAL,
+        replaygain_album_gain REAL,
+        replaygain_album_peak REAL,
         FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_track_album ON tracks(album_id);
     CREATE INDEX IF NOT EXISTS idx_track_title ON tracks(title);
-    CREATE INDEX IF NOT EXISTS idx_track_library ON tracks(library_tag);
 
     CREATE TABLE IF NOT EXISTS lyrics (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -152,12 +163,46 @@ function init_sqlite_schema($pdo) {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS scrobble_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        service TEXT NOT NULL,
+        track_title TEXT NOT NULL,
+        artist_name TEXT NOT NULL,
+        album_name TEXT,
+        timestamp INTEGER NOT NULL,
+        status TEXT DEFAULT 'pending'
+    );
     ";
     $pdo->exec($schema);
 
-    // Auto-migrate tracks table if library_tag column is missing
-    try {
-        $pdo->exec("ALTER TABLE tracks ADD COLUMN library_tag TEXT DEFAULT 'flac';");
-    } catch (Exception $e) {}
+    // Auto-migrate tables for new columns
+    $migrations = [
+        "ALTER TABLE tracks ADD COLUMN library_tag TEXT DEFAULT 'flac';",
+        "ALTER TABLE tracks ADD COLUMN rating INTEGER DEFAULT 0;",
+        "ALTER TABLE tracks ADD COLUMN is_favorite INTEGER DEFAULT 0;",
+        "ALTER TABLE tracks ADD COLUMN replaygain_track_gain REAL;",
+        "ALTER TABLE tracks ADD COLUMN replaygain_track_peak REAL;",
+        "ALTER TABLE tracks ADD COLUMN replaygain_album_gain REAL;",
+        "ALTER TABLE tracks ADD COLUMN replaygain_album_peak REAL;",
+        "ALTER TABLE albums ADD COLUMN rating INTEGER DEFAULT 0;",
+        "ALTER TABLE albums ADD COLUMN is_favorite INTEGER DEFAULT 0;",
+        "ALTER TABLE artists ADD COLUMN bio TEXT;",
+        "ALTER TABLE artists ADD COLUMN banner_art TEXT;",
+        "ALTER TABLE artists ADD COLUMN tags TEXT;",
+        "ALTER TABLE artists ADD COLUMN genres TEXT;",
+        "CREATE INDEX IF NOT EXISTS idx_track_library ON tracks(library_tag);",
+        "CREATE INDEX IF NOT EXISTS idx_track_rating ON tracks(rating);"
+    ];
+    foreach ($migrations as $sql) {
+        try {
+            $pdo->exec($sql);
+        } catch (Exception $e) {}
+    }
 }
 ?>

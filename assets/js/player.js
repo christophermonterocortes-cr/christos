@@ -252,7 +252,13 @@ const Player = {
         this.ensureAudioContext();
 
         this.currentTrack = track;
+        this.hasScrobbledCurrent = false;
         this.updateMetadataUI(track);
+
+        // Apply ReplayGain loudness normalization if DSP is ready
+        if (typeof DSP !== 'undefined' && DSP.applyReplayGain) {
+            DSP.applyReplayGain(track);
+        }
 
         const dur = track.duration || 0;
         const timeDisplay = document.getElementById('time-display');
@@ -279,6 +285,9 @@ const Player = {
                 Visualizer.start(this.analyser);
             }
             this.updateMediaSession(track);
+
+            // Trigger Now Playing scrobble (Last.fm & ListenBrainz)
+            fetch(`/api/enrichment.php?action=scrobble_now_playing&track_id=${track.id}`, { method: 'POST' }).catch(() => {});
         } catch (err) {
             console.error("Playback start error:", err);
         }
@@ -444,6 +453,15 @@ const Player = {
         const fsTot = document.getElementById('fullscreen-total-time');
         if (fsCur) fsCur.textContent = this.formatTime(cur);
         if (fsTot) fsTot.textContent = this.formatTime(dur);
+
+        // Scrobble trigger (Last.fm & ListenBrainz standard: 50% duration or 240s)
+        if (!this.hasScrobbledCurrent && this.currentTrack && dur >= 30) {
+            if (cur >= 240 || cur >= (dur * 0.5)) {
+                this.hasScrobbledCurrent = true;
+                const ts = Math.floor(Date.now() / 1000);
+                fetch(`/api/enrichment.php?action=scrobble_track&track_id=${this.currentTrack.id}&timestamp=${ts}`, { method: 'POST' }).catch(() => {});
+            }
+        }
 
         this.syncLyrics(cur);
     },
@@ -731,6 +749,10 @@ const Player = {
         const isFav = !!(track.is_favorite == 1 || track.is_favorite === true);
         window.updateFavoriteUI(track.id, isFav);
 
+        // Update Star Rating State (0-5)
+        const rating = parseInt(track.rating || 0, 10);
+        window.updateRatingUI(track.id, rating);
+
         document.querySelectorAll('.track-row').forEach(row => {
             row.classList.toggle('playing', row.dataset.trackId == track.id);
         });
@@ -868,6 +890,88 @@ window.updateFavoriteUI = function(trackId, isFavorite) {
             svg.setAttribute('fill', heartFill);
             svg.setAttribute('stroke', heartStroke);
         }
+    });
+};
+
+/* ============================================================
+   5-STAR RATINGS ENGINE
+   ============================================================ */
+window.rateTrack = async function(trackId = null, stars = 0) {
+    const targetId = trackId || (Player.currentTrack ? Player.currentTrack.id : null);
+    if (!targetId) return;
+
+    // Toggle off if same rating clicked
+    if (Player.currentTrack && Player.currentTrack.id == targetId && Player.currentTrack.rating === stars) {
+        stars = 0;
+    }
+
+    try {
+        const res = await fetch('/api/library.php?action=rate_track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ track_id: targetId, rating: stars })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            if (Player.currentTrack && Player.currentTrack.id == targetId) {
+                Player.currentTrack.rating = stars;
+            }
+            window.updateRatingUI(targetId, stars);
+        }
+    } catch (e) {
+        console.error("Failed to rate track:", e);
+    }
+};
+
+window.rateAlbum = async function(albumId, stars = 0) {
+    if (!albumId) return;
+    try {
+        const res = await fetch('/api/library.php?action=rate_album', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ album_id: albumId, rating: stars })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            window.updateAlbumRatingUI(albumId, stars);
+        }
+    } catch (e) {
+        console.error("Failed to rate album:", e);
+    }
+};
+
+window.updateRatingUI = function(trackId, rating) {
+    // Player bar stars
+    for (let i = 1; i <= 5; i++) {
+        const star = document.getElementById(`track-star-${i}`);
+        if (star) {
+            star.classList.toggle('active', i <= rating);
+            star.style.color = (i <= rating) ? '#f59e0b' : 'rgba(255,255,255,0.2)';
+            star.style.fill = (i <= rating) ? '#f59e0b' : 'none';
+        }
+        const fsStar = document.getElementById(`fs-track-star-${i}`);
+        if (fsStar) {
+            fsStar.classList.toggle('active', i <= rating);
+            fsStar.style.color = (i <= rating) ? '#f59e0b' : 'rgba(255,255,255,0.2)';
+            fsStar.style.fill = (i <= rating) ? '#f59e0b' : 'none';
+        }
+    }
+
+    // Row stars in library
+    document.querySelectorAll(`.track-stars-${trackId} .star-icon`).forEach(btn => {
+        const val = parseInt(btn.getAttribute('data-star') || '0', 10);
+        btn.classList.toggle('active', val <= rating);
+        btn.style.color = (val <= rating) ? '#f59e0b' : 'rgba(255,255,255,0.2)';
+        btn.style.fill = (val <= rating) ? '#f59e0b' : 'none';
+    });
+};
+
+window.updateAlbumRatingUI = function(albumId, rating) {
+    document.querySelectorAll(`.album-stars-${albumId} .star-icon`).forEach(btn => {
+        const val = parseInt(btn.getAttribute('data-star') || '0', 10);
+        btn.classList.toggle('active', val <= rating);
+        btn.style.color = (val <= rating) ? '#f59e0b' : 'rgba(255,255,255,0.2)';
+        btn.style.fill = (val <= rating) ? '#f59e0b' : 'none';
     });
 };
 

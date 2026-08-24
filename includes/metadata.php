@@ -47,6 +47,15 @@ class AudioMetadata {
             }
         }
 
+        // Auto-discover sidecar lyrics (.lrc, .srt, .ttml, .xml, .txt)
+        if (empty($data['lyrics'])) {
+            $sidecar = self::findSidecarLyrics($filepath);
+            if ($sidecar) {
+                $data['lyrics'] = $sidecar['text'];
+                $data['is_synced'] = $sidecar['is_synced'];
+            }
+        }
+
         return $data;
     }
 
@@ -67,7 +76,14 @@ class AudioMetadata {
             'sample_rate' => 44100,
             'format' => strtolower(pathinfo($filepath, PATHINFO_EXTENSION)),
             'art_path' => null,
-            'embedded_art' => null
+            'embedded_art' => null,
+            'rating' => 0,
+            'replaygain_track_gain' => null,
+            'replaygain_track_peak' => null,
+            'replaygain_album_gain' => null,
+            'replaygain_album_peak' => null,
+            'lyrics' => null,
+            'is_synced' => 0
         ];
     }
 
@@ -131,6 +147,22 @@ class AudioMetadata {
                                     elseif ($key === 'ALBUM') $data['album'] = $val;
                                     elseif ($key === 'TRACKNUMBER') $data['track_number'] = (int)$val;
                                     elseif ($key === 'DATE' || $key === 'YEAR') $data['year'] = (int)substr($val, 0, 4);
+                                    elseif ($key === 'REPLAYGAIN_TRACK_GAIN' || $key === 'R128_TRACK_GAIN') {
+                                        $data['replaygain_track_gain'] = (float)str_ireplace(['db', ' '], '', $val);
+                                    } elseif ($key === 'REPLAYGAIN_TRACK_PEAK') {
+                                        $data['replaygain_track_peak'] = (float)$val;
+                                    } elseif ($key === 'REPLAYGAIN_ALBUM_GAIN' || $key === 'R128_ALBUM_GAIN') {
+                                        $data['replaygain_album_gain'] = (float)str_ireplace(['db', ' '], '', $val);
+                                    } elseif ($key === 'REPLAYGAIN_ALBUM_PEAK') {
+                                        $data['replaygain_album_peak'] = (float)$val;
+                                    } elseif ($key === 'RATING') {
+                                        $r = (int)$val;
+                                        if ($r > 5) $r = (int)round($r / 20);
+                                        $data['rating'] = max(0, min(5, $r));
+                                    } elseif ($key === 'LYRICS' || $key === 'UNSYNCEDLYRICS' || $key === 'SYNCEDLYRICS') {
+                                        $data['lyrics'] = $val;
+                                        $data['is_synced'] = preg_match('/\[\d{2}:\d{2}/', $val) ? 1 : 0;
+                                    }
                                 }
                             }
                         }
@@ -213,6 +245,47 @@ class AudioMetadata {
                     elseif ($frameId === 'TALB') $data['album'] = $text;
                     elseif ($frameId === 'TRCK') $data['track_number'] = (int)$text;
                     elseif ($frameId === 'TYER' || $frameId === 'TDRC') $data['year'] = (int)substr($text, 0, 4);
+                    elseif ($frameId === 'TXXX') {
+                        // User-defined text: description\0value
+                        $parts = explode("\0", substr($frameContent, 1), 2);
+                        if (count($parts) === 2) {
+                            $desc = strtoupper(trim($parts[0]));
+                            $val = trim($parts[1]);
+                            if ($desc === 'REPLAYGAIN_TRACK_GAIN' || $desc === 'R128_TRACK_GAIN') {
+                                $data['replaygain_track_gain'] = (float)str_ireplace(['db', ' '], '', $val);
+                            } elseif ($desc === 'REPLAYGAIN_TRACK_PEAK') {
+                                $data['replaygain_track_peak'] = (float)$val;
+                            } elseif ($desc === 'REPLAYGAIN_ALBUM_GAIN' || $desc === 'R128_ALBUM_GAIN') {
+                                $data['replaygain_album_gain'] = (float)str_ireplace(['db', ' '], '', $val);
+                            } elseif ($desc === 'REPLAYGAIN_ALBUM_PEAK') {
+                                $data['replaygain_album_peak'] = (float)$val;
+                            }
+                        }
+                    } elseif ($frameId === 'POPM' && strlen($frameContent) >= 2) {
+                        // Popularimeter: email\0rating (1-255)
+                        $nullPos = strpos($frameContent, "\0");
+                        if ($nullPos !== false && $nullPos + 1 < strlen($frameContent)) {
+                            $popm = ord($frameContent[$nullPos + 1]);
+                            if ($popm >= 224) $data['rating'] = 5;
+                            elseif ($popm >= 160) $data['rating'] = 4;
+                            elseif ($popm >= 96) $data['rating'] = 3;
+                            elseif ($popm >= 32) $data['rating'] = 2;
+                            elseif ($popm >= 1) $data['rating'] = 1;
+                        }
+                    } elseif (($frameId === 'USLT' || $frameId === 'SYLT') && empty($data['lyrics'])) {
+                        // USLT: encoding(1), lang(3), desc\0lyrics
+                        if (strlen($frameContent) > 4) {
+                            $body = substr($frameContent, 4);
+                            $nullPos = strpos($body, "\0");
+                            if ($nullPos !== false) {
+                                $lrc = trim(substr($body, $nullPos + 1));
+                                if ($lrc) {
+                                    $data['lyrics'] = $lrc;
+                                    $data['is_synced'] = preg_match('/\[\d{2}:\d{2}/', $lrc) ? 1 : 0;
+                                }
+                            }
+                        }
+                    }
                 } elseif ($majorVersion === 2) {
                     $frameId = substr($tagData, $offset, 3);
                     if (ord($frameId[0]) === 0) break;
@@ -339,6 +412,10 @@ class AudioMetadata {
                     elseif ($type === "\xA9ART" || $type === "\xC2\xA9ART" || $type === 'aART') $data['artist'] = trim($val);
                     elseif ($type === "\xA9alb" || $type === "\xC2\xA9alb") $data['album'] = trim($val);
                     elseif ($type === "\xA9day" || $type === "\xC2\xA9day") $data['year'] = (int)substr(trim($val), 0, 4);
+                    elseif ($type === "\xA9lyr" || $type === "\xC2\xA9lyr") {
+                        $data['lyrics'] = trim($val);
+                        $data['is_synced'] = preg_match('/\[\d{2}:\d{2}/', $val) ? 1 : 0;
+                    }
                     elseif ($type === 'trkn' && strlen($val) >= 4) {
                         $data['track_number'] = unpack('n', substr($val, 2, 2))[1];
                     }
@@ -423,6 +500,137 @@ class AudioMetadata {
         }
         fclose($fp);
         return $data;
+    }
+
+    public static function findSidecarLyrics($filepath) {
+        if (!file_exists($filepath)) return null;
+        $dir = dirname($filepath);
+        $baseName = pathinfo($filepath, PATHINFO_FILENAME);
+
+        $candidates = [
+            $dir . DIRECTORY_SEPARATOR . $baseName . '.lrc',
+            $dir . DIRECTORY_SEPARATOR . $baseName . '.srt',
+            $dir . DIRECTORY_SEPARATOR . $baseName . '.ttml',
+            $dir . DIRECTORY_SEPARATOR . $baseName . '.xml',
+            $dir . DIRECTORY_SEPARATOR . $baseName . '.txt',
+        ];
+
+        // Also check language variants (e.g. song.en.lrc, song.es.srt)
+        $globMatches = @glob($dir . DIRECTORY_SEPARATOR . '*' . '.*');
+        if ($globMatches) {
+            foreach ($globMatches as $gm) {
+                if (!in_array($gm, $candidates) && $gm !== $filepath) {
+                    $candBase = pathinfo($gm, PATHINFO_FILENAME);
+                    if (stripos($candBase, $baseName) === 0) {
+                        $ext = strtolower(pathinfo($gm, PATHINFO_EXTENSION));
+                        if (in_array($ext, ['lrc', 'srt', 'ttml', 'xml', 'txt'])) {
+                            $candidates[] = $gm;
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach ($candidates as $cand) {
+            if (file_exists($cand) && filesize($cand) > 0) {
+                $raw = @file_get_contents($cand);
+                if (!$raw) continue;
+                $ext = strtolower(pathinfo($cand, PATHINFO_EXTENSION));
+
+                if ($ext === 'lrc') {
+                    $isSynced = preg_match('/\[\d{2}:\d{2}/', $raw) ? 1 : 0;
+                    return ['text' => $raw, 'is_synced' => $isSynced, 'format' => 'lrc', 'source' => basename($cand)];
+                } elseif ($ext === 'srt') {
+                    $converted = self::convertSrtToLrc($raw);
+                    if ($converted) {
+                        return ['text' => $converted, 'is_synced' => 1, 'format' => 'srt', 'source' => basename($cand)];
+                    }
+                } elseif ($ext === 'ttml' || $ext === 'xml') {
+                    $converted = self::convertTtmlToLrc($raw);
+                    if ($converted) {
+                        return ['text' => $converted, 'is_synced' => 1, 'format' => 'ttml', 'source' => basename($cand)];
+                    }
+                } elseif ($ext === 'txt') {
+                    return ['text' => trim($raw), 'is_synced' => 0, 'format' => 'txt', 'source' => basename($cand)];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static function convertSrtToLrc($srtText) {
+        $lines = preg_split('/\r\n|\r|\n/', trim($srtText));
+        $lrcLines = [];
+        $i = 0;
+        $count = count($lines);
+
+        while ($i < $count) {
+            $line = trim($lines[$i]);
+            // Skip numeric index
+            if (is_numeric($line)) {
+                $i++;
+                if ($i < $count) $line = trim($lines[$i]);
+            }
+
+            // Timestamp line: 00:01:23,456 --> 00:01:26,789
+            if (preg_match('/(\d{2}):(\d{2}):(\d{2})[,.](\d{2,3})\s*-->/i', $line, $m)) {
+                $hours = (int)$m[1];
+                $mins = (int)$m[2] + ($hours * 60);
+                $secs = (int)$m[3];
+                $ms = substr($m[4], 0, 2);
+                $timeTag = sprintf("[%02d:%02d.%02d]", $mins, $secs, (int)$ms);
+
+                $textLines = [];
+                $i++;
+                while ($i < $count && trim($lines[$i]) !== '') {
+                    $cleaned = strip_tags(trim($lines[$i]));
+                    if ($cleaned !== '') $textLines[] = $cleaned;
+                    $i++;
+                }
+
+                $text = implode(' ', $textLines);
+                if ($text !== '') {
+                    $lrcLines[] = "{$timeTag}{$text}";
+                }
+            }
+            $i++;
+        }
+
+        return implode("\n", $lrcLines);
+    }
+
+    public static function convertTtmlToLrc($ttmlText) {
+        $lrcLines = [];
+        // Match <p begin="..." ...>text</p>
+        if (preg_match_all('/<p[^>]*begin=[\'"]([^\'"]+)[\'"][^>]*>(.*?)<\/p>/is', $ttmlText, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $m) {
+                $beginRaw = trim($m[1]);
+                $body = strip_tags(trim($m[2]));
+                $body = html_entity_decode($body, ENT_QUOTES, 'UTF-8');
+                if ($body === '') continue;
+
+                $mins = 0; $secs = 0; $cents = 0;
+                if (preg_match('/^(\d{1,2}):(\d{2}):(\d{2})[.:](\d{2,3})$/', $beginRaw, $tm)) {
+                    $mins = (int)$tm[2] + ((int)$tm[1] * 60);
+                    $secs = (int)$tm[3];
+                    $cents = (int)substr($tm[4], 0, 2);
+                } elseif (preg_match('/^(\d{1,2}):(\d{2})[.:](\d{2,3})$/', $beginRaw, $tm)) {
+                    $mins = (int)$tm[1];
+                    $secs = (int)$tm[2];
+                    $cents = (int)substr($tm[3], 0, 2);
+                } elseif (preg_match('/^(\d+(\.\d+)?)s?$/', $beginRaw, $tm)) {
+                    $totalSec = (float)$tm[1];
+                    $mins = floor($totalSec / 60);
+                    $secs = floor($totalSec % 60);
+                    $cents = round(($totalSec - floor($totalSec)) * 100);
+                }
+
+                $timeTag = sprintf("[%02d:%02d.%02d]", $mins, $secs, $cents);
+                $lrcLines[] = "{$timeTag}{$body}";
+            }
+        }
+        return implode("\n", $lrcLines);
     }
 }
 ?>

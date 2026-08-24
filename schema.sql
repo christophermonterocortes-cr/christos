@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS artists (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     art_path VARCHAR(500),
+    bio TEXT,
+    banner_art VARCHAR(500),
+    tags VARCHAR(500),
+    genres VARCHAR(500),
     INDEX idx_artist_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -33,6 +37,8 @@ CREATE TABLE IF NOT EXISTS albums (
     title VARCHAR(255) NOT NULL,
     year INT,
     art_path VARCHAR(500),
+    rating INT DEFAULT 0,
+    is_favorite BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE,
     INDEX idx_album_artist (artist_id),
     INDEX idx_album_title (title)
@@ -48,9 +54,18 @@ CREATE TABLE IF NOT EXISTS tracks (
     sample_rate INT,
     duration INT,
     track_number INT,
+    library_tag VARCHAR(50) DEFAULT 'flac',
+    rating INT DEFAULT 0,
+    is_favorite BOOLEAN DEFAULT FALSE,
+    replaygain_track_gain DOUBLE DEFAULT NULL,
+    replaygain_track_peak DOUBLE DEFAULT NULL,
+    replaygain_album_gain DOUBLE DEFAULT NULL,
+    replaygain_album_peak DOUBLE DEFAULT NULL,
     FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
     INDEX idx_track_album (album_id),
-    INDEX idx_track_title (title)
+    INDEX idx_track_title (title),
+    INDEX idx_track_library (library_tag),
+    INDEX idx_track_rating (rating)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS lyrics (
@@ -96,4 +111,19 @@ CREATE TABLE IF NOT EXISTS play_history (
     FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE,
     INDEX idx_history_user (user_id),
     INDEX idx_history_played (played_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS settings (
+    `key` VARCHAR(100) PRIMARY KEY,
+    `value` TEXT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS scrobble_queue (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    service VARCHAR(50) NOT NULL,
+    track_title VARCHAR(255) NOT NULL,
+    artist_name VARCHAR(255) NOT NULL,
+    album_name VARCHAR(255),
+    timestamp BIGINT NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

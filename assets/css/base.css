@@ -2497,8 +2497,105 @@ body.fullscreen-active #visualizer-container {
         height: auto !important;
         min-height: 250px;
     }
-    .fullscreen-mode-toggles {
-        display: none;
-    }
+/* ============================================================
+   5-STAR RATINGS, REPLAYGAIN BADGES & ARTIST HERO STYLES
+   ============================================================ */
+.rating-stars-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 8px;
+    cursor: pointer;
+}
+
+.star-icon {
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.25);
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.star-icon:hover,
+.star-icon.active {
+    color: #f59e0b !important;
+    fill: #f59e0b !important;
+}
+
+.fs-stars-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 8px;
+    cursor: pointer;
+}
+
+.star-icon-fs {
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.3);
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.star-icon-fs:hover,
+.star-icon-fs.active {
+    color: #f59e0b !important;
+    fill: #f59e0b !important;
+    transform: scale(1.15);
+}
+
+.capsule-rating-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(245, 158, 11, 0.9);
+    color: #000;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 6px;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+.capsule-rg-badge {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background: rgba(14, 165, 233, 0.85);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 4px;
+    z-index: 2;
+    letter-spacing: 0.5px;
+}
+
+.capsule-fav-indicator {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.65);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.capsule-actions {
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.capsule-stars {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.capsule-stars .star-icon:hover {
+    transform: scale(1.2);
 }
 

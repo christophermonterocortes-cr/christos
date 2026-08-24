@@ -121,6 +121,9 @@ function processFile($filepath, &$stats, $isCli, $isForce = false) {
             $bit_depth = $info['audio']['bits_per_sample'] ?? 16;
             $sample_rate = $info['audio']['sample_rate'] ?? 44100;
             $format = $info['audio']['dataformat'] ?? $format;
+            $rating = 0;
+            $rg_tg = null; $rg_tp = null; $rg_ag = null; $rg_ap = null;
+            $lyrics = null; $is_synced = 0;
         } else {
             $meta = AudioMetadata::analyze($filepath);
             $artist = $meta['artist'];
@@ -133,6 +136,13 @@ function processFile($filepath, &$stats, $isCli, $isForce = false) {
             $format = $meta['format'];
             $art_path = $meta['art_path'];
             $year = $meta['year'];
+            $rating = $meta['rating'] ?? 0;
+            $rg_tg = $meta['replaygain_track_gain'] ?? null;
+            $rg_tp = $meta['replaygain_track_peak'] ?? null;
+            $rg_ag = $meta['replaygain_album_gain'] ?? null;
+            $rg_ap = $meta['replaygain_album_peak'] ?? null;
+            $lyrics = $meta['lyrics'] ?? null;
+            $is_synced = $meta['is_synced'] ?? 0;
         }
 
         // Folder art discovery fallback
@@ -180,30 +190,33 @@ function processFile($filepath, &$stats, $isCli, $isForce = false) {
         }
 
         if ($needsUpdate && $existing) {
-            $stmt = $db->prepare("UPDATE tracks SET album_id = ?, title = ?, format = ?, bit_depth = ?, sample_rate = ?, duration = ?, track_number = ?, library_tag = ? WHERE id = ?");
-            $stmt->execute([$album_id, $title, $format, (int)$bit_depth, (int)$sample_rate, (int)$duration, (int)$track_num, $libraryTag, $existing['id']]);
+            $stmt = $db->prepare("UPDATE tracks SET album_id = ?, title = ?, format = ?, bit_depth = ?, sample_rate = ?, duration = ?, track_number = ?, library_tag = ?, rating = ?, replaygain_track_gain = ?, replaygain_track_peak = ?, replaygain_album_gain = ?, replaygain_album_peak = ? WHERE id = ?");
+            $stmt->execute([$album_id, $title, $format, (int)$bit_depth, (int)$sample_rate, (int)$duration, (int)$track_num, $libraryTag, (int)$rating, $rg_tg, $rg_tp, $rg_ag, $rg_ap, $existing['id']]);
             $track_id = $existing['id'];
             $stats['indexed']++;
             logMsg("Updated [{$libraryTag}]: $artist - $album - $title ({$duration}s)", $isCli);
         } else {
-            // Insert Track with library_tag
-            $stmt = $db->prepare("INSERT INTO tracks (album_id, title, file_path, format, bit_depth, sample_rate, duration, track_number, library_tag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$album_id, $title, $filepath, $format, (int)$bit_depth, (int)$sample_rate, (int)$duration, (int)$track_num, $libraryTag]);
+            // Insert Track with library_tag & ReplayGain
+            $stmt = $db->prepare("INSERT INTO tracks (album_id, title, file_path, format, bit_depth, sample_rate, duration, track_number, library_tag, rating, replaygain_track_gain, replaygain_track_peak, replaygain_album_gain, replaygain_album_peak) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$album_id, $title, $filepath, $format, (int)$bit_depth, (int)$sample_rate, (int)$duration, (int)$track_num, $libraryTag, (int)$rating, $rg_tg, $rg_tp, $rg_ag, $rg_ap]);
             $track_id = $db->lastInsertId();
             $stats['indexed']++;
             logMsg("Indexed [{$libraryTag}]: $artist - $album - $title ({$duration}s)", $isCli);
         }
         
-        // Look for .lrc lyrics file
-        $lrc_path = preg_replace('/\.[^.]+$/', '.lrc', $filepath);
-        if (file_exists($lrc_path) && is_readable($lrc_path)) {
-            $lrc_content = file_get_contents($lrc_path);
-            if ($lrc_content) {
-                $is_synced = preg_match('/\[\d{2}:\d{2}\.\d{2,3}\]/', $lrc_content) ? 1 : 0;
+        // Multi-format sidecar lyrics or embedded lyrics check
+        if (!empty($lyrics)) {
+            $delStmt = $db->prepare("DELETE FROM lyrics WHERE track_id = ?");
+            $delStmt->execute([$track_id]);
+            $stmt = $db->prepare("INSERT INTO lyrics (track_id, lrc_text, is_synced) VALUES (?, ?, ?)");
+            $stmt->execute([$track_id, $lyrics, $is_synced]);
+        } else {
+            $sidecar = AudioMetadata::findSidecarLyrics($filepath);
+            if ($sidecar) {
                 $delStmt = $db->prepare("DELETE FROM lyrics WHERE track_id = ?");
                 $delStmt->execute([$track_id]);
                 $stmt = $db->prepare("INSERT INTO lyrics (track_id, lrc_text, is_synced) VALUES (?, ?, ?)");
-                $stmt->execute([$track_id, $lrc_content, $is_synced]);
+                $stmt->execute([$track_id, $sidecar['text'], $sidecar['is_synced']]);
             }
         }
     } catch (Exception $e) {
