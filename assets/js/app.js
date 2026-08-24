@@ -665,17 +665,29 @@ async function openTvSeriesDetail(seriesFolder) {
 function playTvEpisode(epIdx) {
     if (!window.currentTvEpisodeList || !window.currentTvEpisodeList[epIdx]) return;
     const ep = window.currentTvEpisodeList[epIdx];
+    const nextEp = window.currentTvEpisodeList[epIdx + 1] || null;
 
     if (typeof Player !== 'undefined' && Player.isPlaying) {
         Player.pause();
     }
 
-    openTheaterModalWithVideo(ep.title + ' (S' + ep.season + 'E' + ep.episode + ')', ep.quality, ep.stream_url, ep.subtitles, () => {
-        // Next Episode autoplay callback
-        if (window.currentTvEpisodeList[epIdx + 1]) {
-            playTvEpisode(epIdx + 1);
-        }
-    });
+    const nextInfo = nextEp ? {
+        title: `S${nextEp.season}E${nextEp.episode}: ${nextEp.title}`,
+        index: epIdx + 1
+    } : null;
+
+    openTheaterModalWithVideo(
+        ep.title + ' (S' + ep.season + 'E' + ep.episode + ')',
+        ep.quality,
+        ep.stream_url,
+        ep.subtitles,
+        () => {
+            if (nextEp) {
+                playTvEpisode(epIdx + 1);
+            }
+        },
+        nextInfo
+    );
 }
 
 /* ============================================================
@@ -875,116 +887,728 @@ function openTheaterModalById(movieId) {
     openTheaterModalWithVideo(movie.title + (movie.year ? ' (' + movie.year + ')' : ''), movie.quality, movie.stream_url, movie.subtitles);
 }
 
-function openTheaterModalWithVideo(title, quality, streamUrl, subtitles = [], onEndedCallback = null) {
-    let modal = document.getElementById('theater-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'theater-modal';
-        modal.className = 'theater-modal';
-        document.body.appendChild(modal);
-    }
+const CinemaPlayer = {
+    modal: null,
+    video: null,
+    audioCtx: null,
+    compressor: null,
+    sourceNode: null,
+    dialogueBoost: false,
+    fitMode: 'contain', // 'contain' | 'cover' | 'fill'
+    showRemainingTime: false,
+    controlsTimeout: null,
+    nextEpTimeout: null,
+    nextEpCountdown: 10,
+    currentSubIdx: '',
+    currentSpeed: 1.0,
+    isScrubbing: false,
+    onEndedCallback: null,
+    nextEpisodeInfo: null,
+    streamUrl: '',
 
-    let subtitleOptions = '<option value="">Subtitles: Off</option>';
-    let trackTags = '';
-    if (subtitles && subtitles.length > 0) {
-        subtitles.forEach((sub, idx) => {
-            subtitleOptions += `<option value="${idx}" ${idx===0?'selected':''}>${escapeHtml(sub.name)} (${sub.lang})</option>`;
-            trackTags += `<track label="${escapeHtml(sub.name)}" kind="subtitles" srclang="${sub.lang}" src="${sub.url}" ${idx===0?'default':''}>`;
+    init() {
+        let modal = document.getElementById('theater-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'theater-modal';
+            modal.className = 'theater-modal';
+            document.body.appendChild(modal);
+        }
+        this.modal = modal;
+    },
+
+    open(title, quality, streamUrl, subtitles = [], onEndedCallback = null, nextEpisodeInfo = null) {
+        this.init();
+        this.streamUrl = streamUrl;
+        this.onEndedCallback = onEndedCallback;
+        this.nextEpisodeInfo = nextEpisodeInfo;
+
+        if (typeof Player !== 'undefined' && Player.isPlaying) {
+            Player.pause();
+        }
+
+        let trackTags = '';
+        let subMenuItems = `<div class="theater-menu-item active" onclick="CinemaPlayer.setSubtitle('')"><span>Off</span></div>`;
+        
+        if (subtitles && subtitles.length > 0) {
+            subtitles.forEach((sub, idx) => {
+                trackTags += `<track label="${escapeHtml(sub.name)}" kind="subtitles" srclang="${sub.lang}" src="${sub.url}">`;
+                subMenuItems += `<div class="theater-menu-item" onclick="CinemaPlayer.setSubtitle(${idx})"><span>${escapeHtml(sub.name)} (${sub.lang})</span></div>`;
+            });
+        }
+
+        const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+        let speedMenuItems = '';
+        speeds.forEach(s => {
+            speedMenuItems += `<div class="theater-menu-item ${s===1.0?'active':''}" onclick="CinemaPlayer.setSpeed(${s})"><span>${s}x ${s===1.0?'(Normal)':''}</span></div>`;
         });
-    }
 
-    // Check saved timestamp
-    const savedTime = parseFloat(localStorage.getItem('christos_video_pos_' + streamUrl) || '0');
+        this.modal.innerHTML = `
+            <div class="theater-viewport" id="theater-viewport">
+                <video id="theater-video-player" class="theater-video-elem" playsinline preload="auto" crossorigin="anonymous">
+                    <source src="${streamUrl}" type="video/mp4">
+                    ${trackTags}
+                    Your browser does not support HTML5 video playback.
+                </video>
 
-    modal.innerHTML = `
-        <div class="theater-header">
-            <div class="theater-movie-title">${escapeHtml(title)} • <span style="color:var(--accent-color);">${quality}</span></div>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <select id="theater-speed-select" class="form-select" onchange="changeVideoSpeed(this.value)" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:6px 10px; border-radius:8px; font-size:0.85rem;">
-                    <option value="0.75">0.75x</option>
-                    <option value="1.0" selected>1.0x (Normal)</option>
-                    <option value="1.25">1.25x</option>
-                    <option value="1.5">1.5x</option>
-                    <option value="2.0">2.0x</option>
-                </select>
-                <select id="theater-sub-select" class="form-select" onchange="changeVideoSubtitle(this.value)" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:6px 12px; border-radius:8px; font-size:0.85rem;">
-                    ${subtitleOptions}
-                </select>
-                <button class="fullscreen-exit-btn" onclick="toggleVideoPiP()" title="Picture in Picture">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="12" y="12" width="8" height="8" rx="1"/></svg>
-                </button>
-                <button class="fullscreen-exit-btn" onclick="closeTheaterModal()" title="Close Theater">
-                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
+                <!-- Center Animated Action Ripple -->
+                <div id="theater-center-action" class="theater-center-action">
+                    <svg id="theater-center-icon" viewBox="0 0 24 24" width="44" height="44" fill="currentColor"></svg>
+                </div>
+
+                <!-- Smart Resume Notification Banner -->
+                <div id="theater-resume-banner" class="theater-resume-banner" style="display:none;">
+                    <span>Resumed at <b id="theater-resume-time">00:00</b></span>
+                    <button onclick="CinemaPlayer.restartFromBeginning()" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:#fff; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:700; cursor:pointer;">Restart from 0:00</button>
+                    <button onclick="CinemaPlayer.dismissResume()" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:1rem; padding:0 4px;">✕</button>
+                </div>
+
+                <!-- Next Episode Countdown Banner (For TV Series) -->
+                <div id="theater-next-banner" class="theater-next-episode-banner">
+                    <div>
+                        <div style="font-size:0.75rem; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Next Episode</div>
+                        <div id="theater-next-title" style="font-size:0.92rem; font-weight:700; color:#fff; margin-top:2px;"></div>
+                        <div style="font-size:0.8rem; color:#22c55e; font-weight:600; margin-top:2px;">Playing in <span id="theater-next-countdown">10</span>s</div>
+                    </div>
+                    <button onclick="CinemaPlayer.playNextEpisodeNow()" class="theater-exit-btn" style="background:var(--accent-color); border:none; padding:6px 14px; font-size:0.82rem;">Play Now</button>
+                    <button onclick="CinemaPlayer.cancelNextEpisode()" style="background:transparent; border:none; color:#888; cursor:pointer; font-size:1.1rem; padding:4px;">✕</button>
+                </div>
+
+                <!-- Top Cinema Bar -->
+                <div class="theater-top-overlay">
+                    <div class="theater-title-wrap">
+                        <button class="theater-exit-btn" onclick="CinemaPlayer.close()">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                            <span>Exit</span>
+                        </button>
+                        <div class="theater-title-text">
+                            <span>${escapeHtml(title)}</span>
+                            <span class="theater-quality-pill">${escapeHtml(quality || 'HD')}</span>
+                        </div>
+                    </div>
+                    <div class="theater-top-actions">
+                        <button class="theater-icon-btn" id="theater-dialogue-btn" onclick="CinemaPlayer.toggleDialogueBoost()" title="Dialogue Boost / Night Mode (Compressor)">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                        </button>
+                        <button class="theater-icon-btn" id="theater-fit-btn" onclick="CinemaPlayer.toggleVideoFit()" title="Aspect Ratio: Fit / Fill">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                        </button>
+                        <button class="theater-icon-btn" onclick="CinemaPlayer.togglePiP()" title="Picture-in-Picture">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="12" y="12" width="8" height="8" rx="1"/></svg>
+                        </button>
+                        <button class="theater-icon-btn" onclick="CinemaPlayer.close()" title="Close Theater (Esc)">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bottom Cinema Control Deck -->
+                <div class="theater-bottom-overlay">
+                    <!-- Seek / Scrub Bar -->
+                    <div class="theater-scrub-container" id="theater-scrub-container">
+                        <div class="theater-scrub-tooltip" id="theater-scrub-tooltip">00:00</div>
+                        <div class="theater-scrub-track">
+                            <div class="theater-scrub-buffer" id="theater-scrub-buffer"></div>
+                            <div class="theater-scrub-progress" id="theater-scrub-progress">
+                                <div class="theater-scrub-thumb"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Deck Buttons -->
+                    <div class="theater-deck-bar">
+                        <div class="theater-deck-left">
+                            <button class="theater-play-btn" id="theater-play-trigger" onclick="CinemaPlayer.togglePlay()" title="Play/Pause (Space)">
+                                <svg id="theater-deck-play-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                                <svg id="theater-deck-pause-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                            </button>
+
+                            <button class="theater-skip-btn" onclick="CinemaPlayer.seekRelative(-10)" title="Rewind 10s (Left Arrow / J)">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                                <span>10s</span>
+                            </button>
+
+                            <button class="theater-skip-btn" onclick="CinemaPlayer.seekRelative(10)" title="Forward 10s (Right Arrow / L)">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                                <span>10s</span>
+                            </button>
+
+                            <button class="theater-skip-btn" id="theater-next-ep-btn" onclick="CinemaPlayer.playNextEpisodeNow()" style="${nextEpisodeInfo ? 'display:flex;' : 'display:none;'}" title="Next Episode">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                                <span>Next Ep</span>
+                            </button>
+
+                            <div class="theater-volume-group">
+                                <button class="theater-icon-btn" onclick="CinemaPlayer.toggleMute()" title="Mute/Unmute (M)" style="width:34px; height:34px; background:transparent; border:none;">
+                                    <svg id="theater-vol-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                                </button>
+                                <input type="range" class="theater-volume-slider" id="theater-volume-slider" min="0" max="1" step="0.02" value="1" oninput="CinemaPlayer.setVolume(this.value)">
+                            </div>
+
+                            <div class="theater-time-display" id="theater-time-display" onclick="CinemaPlayer.toggleTimeFormat()" title="Click to toggle remaining time">
+                                00:00 / 00:00
+                            </div>
+                        </div>
+
+                        <div class="theater-deck-right">
+                            <!-- Subtitles Menu -->
+                            <div style="position:relative;">
+                                <button class="theater-icon-btn" id="theater-sub-btn" onclick="CinemaPlayer.toggleMenu('subtitles')" title="Subtitles (C)">
+                                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="7" y1="15" x2="7.01" y2="15"/><line x1="11" y1="15" x2="13" y2="15"/><line x1="17" y1="15" x2="17.01" y2="15"/></svg>
+                                </button>
+                                <div id="theater-sub-menu" class="theater-menu-popup">
+                                    <div class="theater-menu-title">Subtitles</div>
+                                    ${subMenuItems}
+                                </div>
+                            </div>
+
+                            <!-- Speed Menu -->
+                            <div style="position:relative;">
+                                <button class="theater-icon-btn" id="theater-speed-btn" onclick="CinemaPlayer.toggleMenu('speed')" title="Playback Speed">
+                                    <span id="theater-speed-label" style="font-size:0.78rem; font-weight:800;">1x</span>
+                                </button>
+                                <div id="theater-speed-menu" class="theater-menu-popup">
+                                    <div class="theater-menu-title">Playback Speed</div>
+                                    ${speedMenuItems}
+                                </div>
+                            </div>
+
+                            <!-- Fullscreen Button -->
+                            <button class="theater-icon-btn" onclick="CinemaPlayer.toggleFullscreen()" title="Fullscreen (F)">
+                                <svg id="theater-fs-expand" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                                <svg id="theater-fs-compress" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-        <div class="theater-video-container">
-            <video id="theater-video-player" controls autoplay playsinline preload="auto">
-                <source src="${streamUrl}" type="video/mp4">
-                ${trackTags}
-                Your browser does not support HTML5 video playback.
-            </video>
-        </div>
-    `;
+        `;
 
-    modal.classList.add('active');
+        this.modal.classList.add('active');
+        this.video = document.getElementById('theater-video-player');
+        this.setupEvents();
 
-    const video = document.getElementById('theater-video-player');
-    if (video) {
-        if (savedTime > 10) {
-            video.currentTime = savedTime;
-        }
-        video.addEventListener('timeupdate', () => {
-            if (video.currentTime > 5) {
-                localStorage.setItem('christos_video_pos_' + streamUrl, video.currentTime);
+        // Check saved playback position
+        const savedTime = parseFloat(localStorage.getItem('christos_video_pos_' + streamUrl) || '0');
+        if (savedTime > 15) {
+            this.video.currentTime = savedTime;
+            const resumeBanner = document.getElementById('theater-resume-banner');
+            const resumeTime = document.getElementById('theater-resume-time');
+            if (resumeBanner && resumeTime) {
+                resumeTime.textContent = this.formatTime(savedTime);
+                resumeBanner.style.display = 'flex';
+                setTimeout(() => { if (resumeBanner) resumeBanner.style.display = 'none'; }, 6000);
             }
-        });
-        if (onEndedCallback) {
-            video.addEventListener('ended', onEndedCallback);
         }
+
+        // Auto play
+        this.video.play().catch(() => {});
+        this.resetControlsTimer();
+    },
+
+    setupEvents() {
+        if (!this.video) return;
+
+        // Video state updates
+        this.video.addEventListener('timeupdate', () => this.onTimeUpdate());
+        this.video.addEventListener('progress', () => this.onProgress());
+        this.video.addEventListener('play', () => this.updatePlayIcon(true));
+        this.video.addEventListener('pause', () => this.updatePlayIcon(false));
+        this.video.addEventListener('ended', () => this.onEnded());
+
+        // Viewport click / double click
+        const viewport = document.getElementById('theater-viewport');
+        let clickTimeout = null;
+        if (viewport) {
+            viewport.addEventListener('click', (e) => {
+                if (e.target.closest('.theater-top-overlay') || e.target.closest('.theater-bottom-overlay') || e.target.closest('.theater-menu-popup') || e.target.closest('.theater-resume-banner') || e.target.closest('.theater-next-episode-banner')) return;
+                
+                if (clickTimeout) {
+                    clearTimeout(clickTimeout);
+                    clickTimeout = null;
+                    this.toggleFullscreen();
+                } else {
+                    clickTimeout = setTimeout(() => {
+                        clickTimeout = null;
+                        this.togglePlay();
+                    }, 220);
+                }
+            });
+
+            viewport.addEventListener('mousemove', () => this.onMouseMove());
+        }
+
+        // Scrub Bar dragging
+        const scrubContainer = document.getElementById('theater-scrub-container');
+        const tooltip = document.getElementById('theater-scrub-tooltip');
+        if (scrubContainer) {
+            scrubContainer.addEventListener('mousedown', (e) => {
+                this.isScrubbing = true;
+                this.handleScrub(e);
+            });
+
+            scrubContainer.addEventListener('mousemove', (e) => {
+                if (!this.video || !this.video.duration) return;
+                const rect = scrubContainer.getBoundingClientRect();
+                const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                const targetTime = pos * this.video.duration;
+                if (tooltip) {
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = `${pos * 100}%`;
+                    tooltip.textContent = this.formatTime(targetTime);
+                }
+                if (this.isScrubbing) this.handleScrub(e);
+            });
+
+            scrubContainer.addEventListener('mouseleave', () => {
+                if (tooltip) tooltip.style.display = 'none';
+            });
+        }
+
+        document.addEventListener('mouseup', () => { this.isScrubbing = false; });
+
+        // Global Keydown Handler
+        this.keyHandler = (e) => this.onKeyDown(e);
+        window.addEventListener('keydown', this.keyHandler);
+    },
+
+    onMouseMove() {
+        this.modal.classList.remove('theater-controls-hidden');
+        this.modal.classList.remove('cursor-hidden');
+        this.resetControlsTimer();
+    },
+
+    resetControlsTimer() {
+        if (this.controlsTimeout) clearTimeout(this.controlsTimeout);
+        this.controlsTimeout = setTimeout(() => {
+            if (this.video && !this.video.paused && !this.isScrubbing) {
+                this.modal.classList.add('theater-controls-hidden');
+                this.modal.classList.add('cursor-hidden');
+                this.closeMenus();
+            }
+        }, 3000);
+    },
+
+    handleScrub(e) {
+        const container = document.getElementById('theater-scrub-container');
+        if (!container || !this.video || !this.video.duration) return;
+        const rect = container.getBoundingClientRect();
+        const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        this.video.currentTime = pos * this.video.duration;
+        this.updateScrubUI();
+    },
+
+    onTimeUpdate() {
+        if (!this.video) return;
+        this.updateScrubUI();
+
+        // Save position
+        if (this.video.currentTime > 5 && this.streamUrl) {
+            localStorage.setItem('christos_video_pos_' + this.streamUrl, this.video.currentTime);
+        }
+
+        // TV series next episode prompt 15 seconds before ending
+        if (this.nextEpisodeInfo && this.video.duration) {
+            const timeLeft = this.video.duration - this.video.currentTime;
+            if (timeLeft <= 15 && timeLeft > 0 && !this.nextEpTimeout) {
+                this.showNextEpisodeBanner();
+            }
+        }
+    },
+
+    onProgress() {
+        if (!this.video || !this.video.duration) return;
+        const buf = document.getElementById('theater-scrub-buffer');
+        if (buf && this.video.buffered.length > 0) {
+            const end = this.video.buffered.end(this.video.buffered.length - 1);
+            buf.style.width = `${(end / this.video.duration) * 100}%`;
+        }
+    },
+
+    updateScrubUI() {
+        if (!this.video || !this.video.duration) return;
+        const pct = (this.video.currentTime / this.video.duration) * 100;
+        const prog = document.getElementById('theater-scrub-progress');
+        if (prog) prog.style.width = `${pct}%`;
+
+        const timeDisplay = document.getElementById('theater-time-display');
+        if (timeDisplay) {
+            const cur = this.formatTime(this.video.currentTime);
+            const total = this.formatTime(this.video.duration);
+            if (this.showRemainingTime) {
+                const rem = '-' + this.formatTime(Math.max(0, this.video.duration - this.video.currentTime));
+                timeDisplay.textContent = `${cur} / ${rem}`;
+            } else {
+                timeDisplay.textContent = `${cur} / ${total}`;
+            }
+        }
+    },
+
+    toggleTimeFormat() {
+        this.showRemainingTime = !this.showRemainingTime;
+        this.updateScrubUI();
+    },
+
+    togglePlay() {
+        if (!this.video) return;
+        if (this.video.paused) {
+            this.video.play();
+            this.triggerCenterAction('play');
+        } else {
+            this.video.pause();
+            this.triggerCenterAction('pause');
+        }
+    },
+
+    updatePlayIcon(isPlaying) {
+        const playIcon = document.getElementById('theater-deck-play-icon');
+        const pauseIcon = document.getElementById('theater-deck-pause-icon');
+        if (playIcon && pauseIcon) {
+            playIcon.style.display = isPlaying ? 'none' : 'block';
+            pauseIcon.style.display = isPlaying ? 'block' : 'none';
+        }
+    },
+
+    seekRelative(seconds) {
+        if (!this.video) return;
+        this.video.currentTime = Math.max(0, Math.min(this.video.duration || 0, this.video.currentTime + seconds));
+        this.triggerCenterAction(seconds > 0 ? 'fwd' : 'rwd');
+    },
+
+    triggerCenterAction(type) {
+        const actionElem = document.getElementById('theater-center-action');
+        const icon = document.getElementById('theater-center-icon');
+        if (!actionElem || !icon) return;
+
+        if (type === 'play') {
+            icon.innerHTML = '<polygon points="6 4 20 12 6 20 6 4"/>';
+        } else if (type === 'pause') {
+            icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+        } else if (type === 'fwd') {
+            icon.innerHTML = '<path d="M13 19l9-7-9-7v14zM2 19l9-7-9-7v14z"/>';
+        } else if (type === 'rwd') {
+            icon.innerHTML = '<path d="M11 19l-9-7 9-7v14zM22 19l-9-7 9-7v14z"/>';
+        }
+
+        actionElem.classList.remove('animate');
+        void actionElem.offsetWidth;
+        actionElem.classList.add('animate');
+    },
+
+    setVolume(val) {
+        if (!this.video) return;
+        this.video.volume = parseFloat(val);
+        this.video.muted = (val == 0);
+        this.updateVolumeIcon();
+    },
+
+    toggleMute() {
+        if (!this.video) return;
+        this.video.muted = !this.video.muted;
+        const slider = document.getElementById('theater-volume-slider');
+        if (slider) slider.value = this.video.muted ? 0 : this.video.volume;
+        this.updateVolumeIcon();
+    },
+
+    updateVolumeIcon() {
+        const icon = document.getElementById('theater-vol-icon');
+        if (!icon || !this.video) return;
+        if (this.video.muted || this.video.volume === 0) {
+            icon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>';
+        } else if (this.video.volume < 0.5) {
+            icon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+        } else {
+            icon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+        }
+    },
+
+    toggleDialogueBoost() {
+        if (!this.video) return;
+        const btn = document.getElementById('theater-dialogue-btn');
+
+        if (!this.audioCtx) {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                this.audioCtx = new AudioCtx();
+                this.sourceNode = this.audioCtx.createMediaElementSource(this.video);
+                this.compressor = this.audioCtx.createDynamicsCompressor();
+                
+                // Voice clarity compressor settings
+                this.compressor.threshold.setValueAtTime(-24, this.audioCtx.currentTime);
+                this.compressor.knee.setValueAtTime(30, this.audioCtx.currentTime);
+                this.compressor.ratio.setValueAtTime(12, this.audioCtx.currentTime);
+                this.compressor.attack.setValueAtTime(0.003, this.audioCtx.currentTime);
+                this.compressor.release.setValueAtTime(0.25, this.audioCtx.currentTime);
+
+                this.sourceNode.connect(this.compressor);
+                this.compressor.connect(this.audioCtx.destination);
+                this.dialogueBoost = true;
+            } catch (e) {
+                console.log('Audio compression bypass:', e);
+            }
+        } else {
+            if (this.dialogueBoost) {
+                this.sourceNode.disconnect();
+                this.sourceNode.connect(this.audioCtx.destination);
+                this.dialogueBoost = false;
+            } else {
+                this.sourceNode.disconnect();
+                this.sourceNode.connect(this.compressor);
+                this.compressor.connect(this.audioCtx.destination);
+                this.dialogueBoost = true;
+            }
+        }
+
+        if (btn) btn.classList.toggle('active', this.dialogueBoost);
+    },
+
+    toggleVideoFit() {
+        if (!this.video) return;
+        const modes = ['contain', 'cover', 'fill'];
+        const curIdx = modes.indexOf(this.fitMode);
+        this.fitMode = modes[(curIdx + 1) % modes.length];
+
+        this.video.classList.remove('fill', 'stretch');
+        if (this.fitMode === 'cover') this.video.classList.add('fill');
+        else if (this.fitMode === 'fill') this.video.classList.add('stretch');
+
+        const btn = document.getElementById('theater-fit-btn');
+        if (btn) btn.classList.toggle('active', this.fitMode !== 'contain');
+    },
+
+    togglePiP() {
+        if (!this.video) return;
+        if (document.pictureInPictureElement) {
+            document.exitPictureInPicture().catch(() => {});
+        } else if (document.pictureInPictureEnabled) {
+            this.video.requestPictureInPicture().catch(() => {});
+        }
+    },
+
+    toggleFullscreen() {
+        const elem = this.modal;
+        if (!document.fullscreenElement) {
+            if (elem.requestFullscreen) elem.requestFullscreen();
+            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+            this.updateFsIcon(true);
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            this.updateFsIcon(false);
+        }
+    },
+
+    updateFsIcon(isFs) {
+        const exp = document.getElementById('theater-fs-expand');
+        const comp = document.getElementById('theater-fs-compress');
+        if (exp && comp) {
+            exp.style.display = isFs ? 'none' : 'block';
+            comp.style.display = isFs ? 'block' : 'none';
+        }
+    },
+
+    toggleMenu(menuName) {
+        const menu = document.getElementById(`theater-${menuName}-menu`);
+        if (!menu) return;
+        const isActive = menu.classList.contains('active');
+        this.closeMenus();
+        if (!isActive) menu.classList.add('active');
+    },
+
+    closeMenus() {
+        const popups = document.querySelectorAll('.theater-menu-popup');
+        popups.forEach(p => p.classList.remove('active'));
+    },
+
+    setSubtitle(idx) {
+        if (!this.video) return;
+        const tracks = this.video.textTracks;
+        for (let i = 0; i < tracks.length; i++) {
+            tracks[i].mode = 'disabled';
+        }
+
+        const items = document.querySelectorAll('#theater-sub-menu .theater-menu-item');
+        items.forEach(it => it.classList.remove('active'));
+
+        if (idx !== '') {
+            const target = tracks[parseInt(idx, 10)];
+            if (target) target.mode = 'showing';
+            if (items[idx + 1]) items[idx + 1].classList.add('active');
+        } else {
+            if (items[0]) items[0].classList.add('active');
+        }
+
+        const subBtn = document.getElementById('theater-sub-btn');
+        if (subBtn) subBtn.classList.toggle('active', idx !== '');
+        this.closeMenus();
+    },
+
+    setSpeed(speed) {
+        if (!this.video) return;
+        this.video.playbackRate = parseFloat(speed);
+        this.currentSpeed = parseFloat(speed);
+
+        const lbl = document.getElementById('theater-speed-label');
+        if (lbl) lbl.textContent = `${speed}x`;
+
+        const items = document.querySelectorAll('#theater-speed-menu .theater-menu-item');
+        items.forEach(it => {
+            it.classList.toggle('active', it.textContent.includes(`${speed}x`));
+        });
+
+        this.closeMenus();
+    },
+
+    showNextEpisodeBanner() {
+        if (!this.nextEpisodeInfo) return;
+        const banner = document.getElementById('theater-next-banner');
+        const titleElem = document.getElementById('theater-next-title');
+        const countElem = document.getElementById('theater-next-countdown');
+        if (!banner || !titleElem) return;
+
+        titleElem.textContent = this.nextEpisodeInfo.title || 'Next Episode';
+        banner.classList.add('active');
+        this.nextEpCountdown = 10;
+
+        if (this.nextEpTimeout) clearInterval(this.nextEpTimeout);
+        this.nextEpTimeout = setInterval(() => {
+            this.nextEpCountdown--;
+            if (countElem) countElem.textContent = this.nextEpCountdown;
+            if (this.nextEpCountdown <= 0) {
+                clearInterval(this.nextEpTimeout);
+                this.nextEpTimeout = null;
+                this.playNextEpisodeNow();
+            }
+        }, 1000);
+    },
+
+    playNextEpisodeNow() {
+        if (this.nextEpTimeout) {
+            clearInterval(this.nextEpTimeout);
+            this.nextEpTimeout = null;
+        }
+        if (this.onEndedCallback) {
+            this.onEndedCallback();
+        }
+    },
+
+    cancelNextEpisode() {
+        if (this.nextEpTimeout) {
+            clearInterval(this.nextEpTimeout);
+            this.nextEpTimeout = null;
+        }
+        const banner = document.getElementById('theater-next-banner');
+        if (banner) banner.classList.remove('active');
+    },
+
+    restartFromBeginning() {
+        if (!this.video) return;
+        this.video.currentTime = 0;
+        this.dismissResume();
+    },
+
+    dismissResume() {
+        const banner = document.getElementById('theater-resume-banner');
+        if (banner) banner.style.display = 'none';
+    },
+
+    onEnded() {
+        if (this.nextEpisodeInfo && this.onEndedCallback) {
+            this.playNextEpisodeNow();
+        } else if (this.onEndedCallback) {
+            this.onEndedCallback();
+        }
+    },
+
+    onKeyDown(e) {
+        if (!this.modal || !this.modal.classList.contains('active')) return;
+        const tag = e.target.tagName.toLowerCase();
+        if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+
+        switch (e.key.toLowerCase()) {
+            case ' ':
+            case 'k':
+                e.preventDefault();
+                this.togglePlay();
+                break;
+            case 'f':
+                e.preventDefault();
+                this.toggleFullscreen();
+                break;
+            case 'm':
+                e.preventDefault();
+                this.toggleMute();
+                break;
+            case 'arrowleft':
+            case 'j':
+                e.preventDefault();
+                this.seekRelative(-10);
+                break;
+            case 'arrowright':
+            case 'l':
+                e.preventDefault();
+                this.seekRelative(10);
+                break;
+            case 'arrowup':
+                e.preventDefault();
+                if (this.video) this.setVolume(Math.min(1, this.video.volume + 0.05));
+                break;
+            case 'arrowdown':
+                e.preventDefault();
+                if (this.video) this.setVolume(Math.max(0, this.video.volume - 0.05));
+                break;
+            case 'c':
+                e.preventDefault();
+                this.setSubtitle(this.currentSubIdx === '' ? 0 : '');
+                break;
+            case 'escape':
+                e.preventDefault();
+                this.close();
+                break;
+        }
+    },
+
+    close() {
+        if (this.nextEpTimeout) clearInterval(this.nextEpTimeout);
+        if (this.controlsTimeout) clearTimeout(this.controlsTimeout);
+
+        if (this.video) {
+            this.video.pause();
+            this.video.removeAttribute('src');
+            this.video.load();
+        }
+
+        if (document.fullscreenElement) {
+            if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        }
+
+        if (this.keyHandler) {
+            window.removeEventListener('keydown', this.keyHandler);
+        }
+
+        if (this.modal) {
+            this.modal.classList.remove('active', 'theater-controls-hidden', 'cursor-hidden');
+        }
+    },
+
+    formatTime(sec) {
+        if (!sec || isNaN(sec)) return '00:00';
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = Math.floor(sec % 60);
+        if (h > 0) {
+            return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+        return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
     }
+};
+
+function openTheaterModalWithVideo(title, quality, streamUrl, subtitles = [], onEndedCallback = null, nextEpisodeInfo = null) {
+    CinemaPlayer.open(title, quality, streamUrl, subtitles, onEndedCallback, nextEpisodeInfo);
 }
 
 function closeTheaterModal() {
-    const modal = document.getElementById('theater-modal');
-    if (modal) {
-        const video = modal.querySelector('video');
-        if (video) {
-            video.pause();
-            video.removeAttribute('src');
-            video.load();
-        }
-        modal.classList.remove('active');
-    }
-}
-
-function changeVideoSpeed(speed) {
-    const video = document.getElementById('theater-video-player');
-    if (video) video.playbackRate = parseFloat(speed);
-}
-
-function toggleVideoPiP() {
-    const video = document.getElementById('theater-video-player');
-    if (video && document.pictureInPictureEnabled) {
-        if (document.pictureInPictureElement) {
-            document.exitPictureInPicture();
-        } else {
-            video.requestPictureInPicture();
-        }
-    }
-}
-
-function changeVideoSubtitle(subIdx) {
-    const video = document.getElementById('theater-video-player');
-    if (!video) return;
-    const tracks = video.textTracks;
-    for (let i = 0; i < tracks.length; i++) {
-        tracks[i].mode = 'disabled';
-    }
-    if (subIdx !== '') {
-        const target = tracks[parseInt(subIdx, 10)];
-        if (target) target.mode = 'showing';
-    }
+    CinemaPlayer.close();
 }
 
 /* ============================================================
