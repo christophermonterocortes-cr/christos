@@ -23,6 +23,16 @@ if ($action === 'subtitle') {
     exit;
 }
 
+if ($action === 'embedded_subtitle') {
+    serveEmbeddedSubtitle();
+    exit;
+}
+
+if ($action === 'online_subtitle') {
+    serveOnlineSubtitle();
+    exit;
+}
+
 if ($action === 'poster') {
     serveMoviePoster();
     exit;
@@ -198,7 +208,19 @@ function fetchOnlineMovieMetadata($cleanTitle, $year = null) {
                 foreach ($data['results'] as $r) {
                     if (!empty($r['poster_path'])) {
                         $pYear = !empty($r['release_date']) ? (int)substr($r['release_date'], 0, 4) : $year;
+                        
+                        // Fetch IMDb ID for subtitles
+                        $imdbId = null;
+                        $extUrl = "https://api.themoviedb.org/3/movie/" . $r['id'] . "/external_ids?api_key={$key}";
+                        $extRes = @file_get_contents($extUrl, false, $ctx);
+                        if ($extRes) {
+                            $extData = json_decode($extRes, true);
+                            $imdbId = $extData['imdb_id'] ?? null;
+                        }
+
                         return [
+                            'tmdb_id' => $r['id'],
+                            'imdb_id' => $imdbId,
                             'title' => $r['title'] ?? $cleanTitle,
                             'year' => $pYear,
                             'poster' => "https://image.tmdb.org/t/p/w780" . $r['poster_path'],
@@ -223,7 +245,9 @@ function fetchOnlineMovieMetadata($cleanTitle, $year = null) {
             $img = $data['image']['original'] ?? $data['image']['medium'] ?? null;
             if ($img) {
                 $pYear = !empty($data['premiered']) ? (int)substr($data['premiered'], 0, 4) : $year;
+                $imdbId = $data['externals']['imdb'] ?? null;
                 return [
+                    'imdb_id' => $imdbId,
                     'title' => $data['name'] ?? $cleanTitle,
                     'year' => $pYear,
                     'poster' => $img,
@@ -236,6 +260,94 @@ function fetchOnlineMovieMetadata($cleanTitle, $year = null) {
     }
 
     return null;
+}
+
+function getEmbeddedSubtitles($filePath, $api = '/api/movies.php') {
+    $subtitles = [];
+    $cmd = "ffprobe -v error -select_streams s -show_entries stream=index,codec_name:stream_tags=language,title -of json " . escapeshellarg($filePath);
+    $json = @shell_exec($cmd);
+    if ($json) {
+        $data = json_decode($json, true);
+        if (!empty($data['streams'])) {
+            $subIdx = 0;
+            foreach ($data['streams'] as $s) {
+                $rawLang = strtolower($s['tags']['language'] ?? 'und');
+                $title = $s['tags']['title'] ?? '';
+                $lang = 'Unknown';
+                if (in_array($rawLang, ['spa', 'es', 'esp'])) $lang = 'Spanish';
+                elseif (in_array($rawLang, ['eng', 'en'])) $lang = 'English';
+                elseif (in_array($rawLang, ['fra', 'fre', 'fr'])) $lang = 'French';
+                elseif (in_array($rawLang, ['ita', 'it'])) $lang = 'Italian';
+                elseif (in_array($rawLang, ['jpn', 'ja'])) $lang = 'Japanese';
+                elseif (in_array($rawLang, ['por', 'pob', 'pt'])) $lang = 'Portuguese';
+                elseif (in_array($rawLang, ['ger', 'deu', 'de'])) $lang = 'German';
+                else $lang = ucfirst($rawLang);
+
+                $label = $lang . ' (Embedded' . (!empty($title) ? ' - ' . $title : '') . ')';
+                $subtitles[] = [
+                    'name' => $label,
+                    'lang' => $lang,
+                    'type' => 'embedded',
+                    'stream_index' => $subIdx,
+                    'url' => $api . '?action=embedded_subtitle&file=' . urlencode($filePath) . '&stream=' . $subIdx
+                ];
+                $subIdx++;
+            }
+        }
+    }
+    return $subtitles;
+}
+
+function fetchOnlineSubtitles($imdbId, $season = null, $episode = null, $api = '/api/movies.php') {
+    if (empty($imdbId)) return [];
+    $subtitles = [];
+    
+    if ($season !== null && $episode !== null) {
+        $url = "https://opensubtitles-v3.strem.io/subtitles/series/{$imdbId}:{$season}:{$episode}.json";
+    } else {
+        $url = "https://opensubtitles-v3.strem.io/subtitles/movie/{$imdbId}.json";
+    }
+
+    $ctx = stream_context_create([
+        'http' => [
+            'timeout' => 4,
+            'header' => "User-Agent: Stremio/4.4.168\r\n"
+        ]
+    ]);
+
+    $res = @file_get_contents($url, false, $ctx);
+    if ($res) {
+        $data = json_decode($res, true);
+        if (!empty($data['subtitles'])) {
+            $spaCount = 0;
+            $engCount = 0;
+            foreach ($data['subtitles'] as $sub) {
+                $langCode = strtolower($sub['lang'] ?? '');
+                $subUrl = $sub['url'] ?? '';
+                if (empty($subUrl)) continue;
+
+                if (in_array($langCode, ['spa', 'es']) && $spaCount < 3) {
+                    $spaCount++;
+                    $subtitles[] = [
+                        'name' => 'Spanish ' . ($spaCount > 1 ? '#' . $spaCount : '(Online)'),
+                        'lang' => 'Spanish',
+                        'type' => 'online',
+                        'url' => $api . '?action=online_subtitle&url=' . urlencode($subUrl)
+                    ];
+                } elseif (in_array($langCode, ['eng', 'en']) && $engCount < 3) {
+                    $engCount++;
+                    $subtitles[] = [
+                        'name' => 'English ' . ($engCount > 1 ? '#' . $engCount : '(Online)'),
+                        'lang' => 'English',
+                        'type' => 'online',
+                        'url' => $api . '?action=online_subtitle&url=' . urlencode($subUrl)
+                    ];
+                }
+            }
+        }
+    }
+
+    return $subtitles;
 }
 
 try {
@@ -279,7 +391,7 @@ try {
 
                         $parsed = parseMovieFilename($filename);
 
-                        // Discover subtitles
+                        // 1. Discover local sidecar subtitles
                         $subtitles = [];
                         $parentDir = dirname($filePath);
                         $subDirs = [$parentDir, $parentDir . '/Subs', $parentDir . '/subs', $parentDir . '/Subtitles'];
@@ -296,8 +408,9 @@ try {
                                             $lang = 'English';
                                         }
                                         $subtitles[] = [
-                                            'name' => pathinfo($subFile, PATHINFO_FILENAME),
+                                            'name' => pathinfo($subFile, PATHINFO_FILENAME) . ' (Local)',
                                             'lang' => $lang,
+                                            'type' => 'local',
                                             'path' => $subPath,
                                             'url' => "/api/movies.php?action=subtitle&file=" . urlencode($subPath)
                                         ];
@@ -306,13 +419,28 @@ try {
                             }
                         }
 
-                        // Fetch online metadata & real official poster
+                        // 2. Discover embedded subtitles inside container
+                        $embedSubs = getEmbeddedSubtitles($filePath, '/api/movies.php');
+                        foreach ($embedSubs as $es) {
+                            $subtitles[] = $es;
+                        }
+
+                        // 3. Fetch online metadata & real official poster
                         $online = fetchOnlineMovieMetadata($parsed['title'], $parsed['year']);
                         $finalTitle = $online['title'] ?? $parsed['title'];
                         $finalYear = $online['year'] ?? $parsed['year'];
                         $finalOverview = $online['overview'] ?? 'TrueNAS Cinema Hi-Fi Stream';
                         $finalRating = $online['rating'] ?? '8.5';
+                        $imdbId = $online['imdb_id'] ?? null;
                         $posterUrl = !empty($online['poster']) ? $online['poster'] : ("/api/movies.php?action=poster&file=" . urlencode($filePath));
+
+                        // 4. Auto-search online English & Spanish subtitles
+                        if ($imdbId) {
+                            $onlineSubs = fetchOnlineSubtitles($imdbId, null, null, '/api/movies.php');
+                            foreach ($onlineSubs as $os) {
+                                $subtitles[] = $os;
+                            }
+                        }
 
                         $movieData = [
                             'id' => $idCounter++,
@@ -329,6 +457,7 @@ try {
                             'poster' => $posterUrl,
                             'overview' => $finalOverview,
                             'rating' => $finalRating,
+                            'imdb_id' => $imdbId,
                             'subtitles' => $subtitles,
                             'stream_url' => "/api/movies.php?action=stream&file=" . urlencode($filePath)
                         ];
@@ -443,6 +572,79 @@ function streamVideo() {
     }
 
     fclose($fp);
+    exit;
+}
+
+function serveEmbeddedSubtitle() {
+    $file = $_GET['file'] ?? '';
+    $streamIdx = (int)($_GET['stream'] ?? 0);
+    $realFile = realpath($file);
+    if (empty($file) || !$realFile || !file_exists($realFile)) {
+        http_response_code(404);
+        die("Video file not found.");
+    }
+
+    $cacheDir = is_dir('/data') ? '/data/subtitles' : sys_get_temp_dir() . '/subtitles';
+    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0777, true);
+
+    $vttFile = $cacheDir . '/embed_' . md5($realFile) . '_' . $streamIdx . '.vtt';
+    if (!file_exists($vttFile) || filesize($vttFile) === 0) {
+        $cmd = "ffmpeg -y -i " . escapeshellarg($realFile) . " -map 0:s:{$streamIdx} " . escapeshellarg($vttFile) . " 2>&1";
+        @shell_exec($cmd);
+    }
+
+    header('Content-Type: text/vtt; charset=utf-8');
+    header('Access-Control-Allow-Origin: *');
+    if (file_exists($vttFile) && filesize($vttFile) > 0) {
+        readfile($vttFile);
+    } else {
+        echo "WEBVTT\n\n";
+    }
+    exit;
+}
+
+function serveOnlineSubtitle() {
+    $subUrl = $_GET['url'] ?? '';
+    if (empty($subUrl)) {
+        http_response_code(400);
+        die("Missing subtitle URL.");
+    }
+
+    $cacheDir = is_dir('/data') ? '/data/subtitles' : sys_get_temp_dir() . '/subtitles';
+    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0777, true);
+
+    $vttFile = $cacheDir . '/online_' . md5($subUrl) . '.vtt';
+    if (!file_exists($vttFile) || filesize($vttFile) === 0) {
+        $ctx = stream_context_create([
+            'http' => [
+                'timeout' => 8,
+                'header' => "User-Agent: Stremio/4.4.168\r\n"
+            ]
+        ]);
+        $raw = @file_get_contents($subUrl, false, $ctx);
+        if ($raw) {
+            // Check if gzipped
+            if (substr($raw, 0, 2) === "\x1f\x8b") {
+                $raw = @gzdecode($raw);
+            }
+            if ($raw) {
+                if (stripos($raw, 'WEBVTT') === 0) {
+                    $vttContent = $raw;
+                } else {
+                    $vttContent = "WEBVTT\n\n" . preg_replace('/(\d{2}:\d{2}:\d{2}),(\d{3})/', '$1.$2', $raw);
+                }
+                @file_put_contents($vttFile, $vttContent);
+            }
+        }
+    }
+
+    header('Content-Type: text/vtt; charset=utf-8');
+    header('Access-Control-Allow-Origin: *');
+    if (file_exists($vttFile) && filesize($vttFile) > 0) {
+        readfile($vttFile);
+    } else {
+        echo "WEBVTT\n\n";
+    }
     exit;
 }
 

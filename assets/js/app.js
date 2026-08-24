@@ -932,8 +932,14 @@ const CinemaPlayer = {
         
         if (subtitles && subtitles.length > 0) {
             subtitles.forEach((sub, idx) => {
-                trackTags += `<track label="${escapeHtml(sub.name)}" kind="subtitles" srclang="${sub.lang}" src="${sub.url}">`;
-                subMenuItems += `<div class="theater-menu-item" onclick="CinemaPlayer.setSubtitle(${idx})"><span>${escapeHtml(sub.name)} (${sub.lang})</span></div>`;
+                const lang = sub.lang || 'Default';
+                let tagType = '';
+                if (sub.type === 'online') tagType = '<span style="font-size:0.65rem; background:#3b82f6; color:#fff; padding:1px 5px; border-radius:4px; margin-left:6px; font-weight:700;">ONLINE</span>';
+                else if (sub.type === 'embedded') tagType = '<span style="font-size:0.65rem; background:#10b981; color:#fff; padding:1px 5px; border-radius:4px; margin-left:6px; font-weight:700;">EMBEDDED</span>';
+                else if (sub.type === 'local') tagType = '<span style="font-size:0.65rem; background:#8b5cf6; color:#fff; padding:1px 5px; border-radius:4px; margin-left:6px; font-weight:700;">LOCAL</span>';
+
+                trackTags += `<track label="${escapeHtml(sub.name)}" kind="subtitles" srclang="${escapeHtml(lang.toLowerCase())}" src="${sub.url}">`;
+                subMenuItems += `<div class="theater-menu-item" onclick="CinemaPlayer.setSubtitle(${idx})"><span>${escapeHtml(sub.name)} ${tagType}</span></div>`;
             });
         }
 
