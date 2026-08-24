@@ -944,6 +944,7 @@ const CinemaPlayer = {
         });
 
         this.modal.innerHTML = `
+            <style id="cinema-player-inline-styles">
                 .theater-modal { position: fixed !important; inset: 0 !important; z-index: 999999 !important; background: #000000 !important; display: none; flex-direction: column !important; overflow: hidden !important; color: #ffffff !important; user-select: none !important; -webkit-user-select: none !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important; }
                 .theater-modal.active { display: flex !important; }
                 .theater-modal.cursor-hidden { cursor: none !important; }
