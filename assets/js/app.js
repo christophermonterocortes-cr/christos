@@ -402,56 +402,212 @@ function applyCurrentSort(updateDom = true) {
 /* ============================================================
    2. TV SHOWS & SERIES VIEW
    ============================================================ */
-async function renderTvShowsView() {
+/* ============================================================
+   2. TV SHOWS & SERIES VIEW (2:3 PORTRAIT COVERS & BADGES)
+   ============================================================ */
+window.currentTvSort = 'title_asc';
+window.rawTvSeriesList = [];
+
+async function renderTvShowsView(forceRefresh = false) {
     const viewContainer = document.getElementById('content-view');
+    viewContainer.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Discovering TV shows & official poster artwork...</p></div>';
+
     try {
-        const res = await fetch('/api/tvshows.php?action=series');
-        currentTvSeriesList = await res.json();
+        const url = '/api/tvshows.php?action=series' + (forceRefresh ? '&refresh=1' : '');
+        const res = await fetch(url);
+        window.rawTvSeriesList = await res.json();
+        currentTvSeriesList = [...window.rawTvSeriesList];
+        applyTvSort(window.currentTvSort, false);
+    } catch (e) {
+        viewContainer.innerHTML = '<div class="empty-state"><h3>Failed to load TV shows</h3><p>' + escapeHtml(e.message) + '</p></div>';
+    }
+}
 
-        let html = `
-            <div class="movies-hero" style="margin-bottom:18px;">
-                <div class="movies-hero-content">
-                    <h2><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:8px;"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>TrueNAS TV Shows & Series</h2>
-                    <p>Stream complete seasons and high-definition TV series from /mnt/DISK_MAC/thecus/LL/disk/Series(TVshows) with episode selector and subtitle tracks.</p>
-                </div>
-                <div style="font-size:1rem; font-weight:700; color:#fff; background:rgba(0,0,0,0.5); padding:10px 18px; border-radius:12px; border:1px solid rgba(255,255,255,0.1);">
-                    ${currentTvSeriesList.length} Series Available
-                </div>
+function applyTvSort(sortType, reRender = true) {
+    window.currentTvSort = sortType;
+    if (!window.rawTvSeriesList) return;
+
+    let sorted = [...window.rawTvSeriesList];
+    switch (sortType) {
+        case 'title_asc':
+            sorted.sort((a, b) => a.title.localeCompare(b.title));
+            break;
+        case 'title_desc':
+            sorted.sort((a, b) => b.title.localeCompare(a.title));
+            break;
+        case 'year_desc':
+            sorted.sort((a, b) => (parseInt(b.year) || 0) - (parseInt(a.year) || 0));
+            break;
+        case 'year_asc':
+            sorted.sort((a, b) => (parseInt(a.year) || 0) - (parseInt(b.year) || 0));
+            break;
+        case 'episodes_desc':
+            sorted.sort((a, b) => (b.episode_count || 0) - (a.episode_count || 0));
+            break;
+        case 'rating_desc':
+            sorted.sort((a, b) => parseFloat(b.rating || 0) - parseFloat(a.rating || 0));
+            break;
+    }
+
+    currentTvSeriesList = sorted;
+    renderTvShowsHtml();
+}
+
+function renderTvShowsHtml() {
+    const viewContainer = document.getElementById('content-view');
+    if (!viewContainer) return;
+
+    const sortLabels = {
+        'title_asc': 'Title ↑',
+        'title_desc': 'Title ↓',
+        'year_desc': 'Year ↓',
+        'year_asc': 'Year ↑',
+        'episodes_desc': 'Episodes ⤓',
+        'rating_desc': 'Rating ★'
+    };
+    const currentSortLabel = sortLabels[window.currentTvSort] || 'Title ↑';
+
+    let html = `
+        <style>
+            .tv-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding: 0 4px; flex-wrap: wrap; gap: 10px; }
+            .tv-items-count { font-size: 0.95rem; font-weight: 600; color: #94a3b8; }
+            .tv-topbar-right { display: flex; align-items: center; gap: 8px; position: relative; }
+            .tv-action-btn { display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14); color: #fff; padding: 6px 14px; border-radius: 18px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(10px); }
+            .tv-action-btn:hover { background: rgba(255, 255, 255, 0.16); }
+            .tv-action-btn.primary { background: var(--accent-color, #fa233b); border-color: var(--accent-color, #fa233b); color: #fff; box-shadow: 0 4px 14px rgba(250, 35, 59, 0.35); }
+            .tv-action-btn.icon-only { padding: 6px 10px; border-radius: 50%; }
+            .tv-sort-dropdown { position: relative; }
+            .tv-sort-menu { display: none; position: absolute; top: calc(100% + 6px); right: 0; background: #161824; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 6px; min-width: 180px; z-index: 999; box-shadow: 0 12px 30px rgba(0,0,0,0.7); }
+            .tv-sort-menu.active { display: block !important; }
+            .tv-sort-menu-item { padding: 8px 12px; font-size: 0.82rem; color: #ccc; border-radius: 6px; cursor: pointer; }
+            .tv-sort-menu-item:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+            .tv-sort-menu-item.active { background: var(--accent-color, #fa233b); color: #fff; font-weight: 700; }
+            
+            .tv-poster-grid { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(110px, 135px)) !important; gap: 18px 14px !important; justify-content: start !important; width: 100% !important; box-sizing: border-box !important; }
+            .tv-series-card { display: flex !important; flex-direction: column !important; width: 100% !important; max-width: 135px !important; cursor: pointer !important; transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) !important; }
+            .tv-series-card:hover { transform: translateY(-3px) !important; }
+            .tv-poster-art { position: relative !important; width: 100% !important; aspect-ratio: 2 / 3 !important; max-height: 202px !important; background: #141622 !important; border-radius: 8px !important; overflow: hidden !important; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; }
+            .tv-poster-img { width: 100% !important; height: 100% !important; max-height: 202px !important; object-fit: cover !important; display: block !important; transition: transform 0.25s ease !important; }
+            .tv-series-card:hover .tv-poster-img { transform: scale(1.05) !important; }
+            
+            /* Green circular badge in top right matching reference photo */
+            .tv-ep-badge {
+                position: absolute !important;
+                top: 6px !important;
+                right: 6px !important;
+                background: #16a34a !important;
+                color: #ffffff !important;
+                font-size: 0.65rem !important;
+                font-weight: 800 !important;
+                min-width: 19px !important;
+                height: 19px !important;
+                border-radius: 10px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                padding: 0 4px !important;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.6) !important;
+                z-index: 4 !important;
+                line-height: 1 !important;
+            }
+            
+            .tv-play-hover { position: absolute !important; inset: 0 !important; background: rgba(0, 0, 0, 0.35) !important; backdrop-filter: blur(1.5px) !important; display: flex !important; align-items: center !important; justify-content: center !important; opacity: 0 !important; transition: opacity 0.2s ease !important; z-index: 3 !important; }
+            .tv-series-card:hover .tv-play-hover { opacity: 1 !important; }
+            .tv-play-circle { width: 36px !important; height: 36px !important; border-radius: 50% !important; background: var(--accent-color, #fa233b) !important; color: #fff !important; display: flex !important; align-items: center !important; justify-content: center !important; box-shadow: 0 3px 12px var(--accent-glow, rgba(250, 35, 59, 0.5)) !important; }
+            .tv-series-details { margin-top: 6px !important; display: flex !important; flex-direction: column !important; gap: 2px !important; }
+            .tv-series-title { font-size: 0.82rem !important; font-weight: 600 !important; color: #ffffff !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; line-height: 1.2 !important; }
+            .tv-series-year { font-size: 0.74rem !important; color: #8e8e9f !important; font-weight: 400 !important; }
+        </style>
+
+        <div class="tv-topbar">
+            <div class="tv-topbar-left">
+                <span class="tv-items-count">${currentTvSeriesList.length} Items</span>
             </div>
-            <div class="movies-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 220px)); gap:16px;">
-        `;
+            <div class="tv-topbar-right">
+                <button class="tv-action-btn primary" onclick="playFirstTvShow()" title="Play First Series">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                    <span>Play</span>
+                </button>
+                <button class="tv-action-btn" onclick="playRandomTvShow()" title="Shuffle Series">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                    <span>Shuffle</span>
+                </button>
+                <div class="tv-sort-dropdown">
+                    <button class="tv-action-btn" onclick="toggleTvSortMenu(event)" title="Sort TV Shows">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="12" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 9 20 6 23 9"/><line x1="20" y1="6" x2="20" y2="18"/></svg>
+                        <span>${currentSortLabel}</span>
+                    </button>
+                    <div id="tv-sort-menu" class="tv-sort-menu">
+                        <div class="tv-sort-menu-item ${window.currentTvSort==='title_asc'?'active':''}" onclick="applyTvSort('title_asc')">Title (A to Z)</div>
+                        <div class="tv-sort-menu-item ${window.currentTvSort==='title_desc'?'active':''}" onclick="applyTvSort('title_desc')">Title (Z to A)</div>
+                        <div class="tv-sort-menu-item ${window.currentTvSort==='year_desc'?'active':''}" onclick="applyTvSort('year_desc')">Release Year (Newest)</div>
+                        <div class="tv-sort-menu-item ${window.currentTvSort==='year_asc'?'active':''}" onclick="applyTvSort('year_asc')">Release Year (Oldest)</div>
+                        <div class="tv-sort-menu-item ${window.currentTvSort==='episodes_desc'?'active':''}" onclick="applyTvSort('episodes_desc')">Episodes Count</div>
+                        <div class="tv-sort-menu-item ${window.currentTvSort==='rating_desc'?'active':''}" onclick="applyTvSort('rating_desc')">Rating (Highest)</div>
+                    </div>
+                </div>
+                <button class="tv-action-btn icon-only" onclick="renderTvShowsView(true)" title="Refresh Metadata & Posters Online">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </button>
+            </div>
+        </div>
 
-        if (!currentTvSeriesList || currentTvSeriesList.length === 0) {
-            html += `<div style="grid-column:1/-1; padding:60px; text-align:center; color:var(--text-secondary);">
-                <h3>No TV shows found in /mnt/DISK_MAC/thecus/LL/disk/Series(TVshows)</h3>
-            </div>`;
-        } else {
-            currentTvSeriesList.forEach(series => {
-                html += `
-                    <div class="movie-card" onclick="openTvSeriesDetail('${escapeHtml(series.folder)}')" style="background:var(--bg-surface); border:1px solid var(--border-color); border-radius:12px; overflow:hidden; cursor:pointer;">
-                        <div class="movie-poster-wrap" style="position:relative; width:100%; aspect-ratio:16/9; background:#111; overflow:hidden;">
-                            <img class="movie-poster-img" src="${series.poster}" alt="${escapeHtml(series.title)}" loading="lazy" style="width:100%; height:100%; object-fit:cover;">
-                            <div class="movie-badge-group" style="position:absolute; top:8px; left:8px; display:flex; gap:4px; z-index:2;">
-                                <span class="movie-badge" style="background:#3b82f6;">${series.season_count} Seasons</span>
-                                <span class="movie-badge quality">${series.episode_count} Eps</span>
-                            </div>
-                        </div>
-                        <div class="movie-info" style="padding:10px 12px;">
-                            <div class="movie-title" title="${escapeHtml(series.title)}" style="font-size:0.9rem; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(series.title)}</div>
-                            <div class="movie-meta-row" style="display:flex; justify-content:space-between; margin-top:4px; font-size:0.78rem; color:var(--text-secondary);">
-                                <span>${series.formatted_size}</span>
-                                <span style="color:#ffbb00; font-weight:700;">★ ${series.rating}</span>
+        <div class="tv-poster-grid">
+    `;
+
+    if (!currentTvSeriesList || currentTvSeriesList.length === 0) {
+        html += `<div style="grid-column:1/-1; padding:60px; text-align:center; color:var(--text-secondary);">
+            <h3>No TV shows found in media collection</h3>
+        </div>`;
+    } else {
+        currentTvSeriesList.forEach(series => {
+            const yearDisplay = series.years_span || series.year || `${series.episode_count} Episodes`;
+
+            html += `
+                <div class="tv-series-card" onclick="openTvSeriesDetail('${escapeHtml(series.folder)}')" title="${escapeHtml(series.title)} (${series.episode_count} Episodes)">
+                    <div class="tv-poster-art">
+                        <img class="tv-poster-img" src="${series.poster}" alt="${escapeHtml(series.title)}" loading="lazy" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
+                        <span class="tv-ep-badge" title="${series.episode_count} Episodes">${series.episode_count}</span>
+                        <div class="tv-play-hover">
+                            <div class="tv-play-circle">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
                             </div>
                         </div>
                     </div>
-                `;
-            });
-        }
+                    <div class="tv-series-details">
+                        <div class="tv-series-title">${escapeHtml(series.title)}</div>
+                        <div class="tv-series-year">${escapeHtml(yearDisplay)}</div>
+                    </div>
+                </div>
+            `;
+        });
+    }
 
-        html += `</div>`;
-        viewContainer.innerHTML = html;
-    } catch (e) {
-        viewContainer.innerHTML = '<div class="empty-state"><h3>Failed to load TV shows</h3><p>' + escapeHtml(e.message) + '</p></div>';
+    html += `</div>`;
+    viewContainer.innerHTML = html;
+}
+
+function toggleTvSortMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('tv-sort-menu');
+    if (menu) menu.classList.toggle('active');
+}
+
+document.addEventListener('click', () => {
+    const menu = document.getElementById('tv-sort-menu');
+    if (menu) menu.classList.remove('active');
+});
+
+function playFirstTvShow() {
+    if (currentTvSeriesList && currentTvSeriesList.length > 0) {
+        openTvSeriesDetail(currentTvSeriesList[0].folder);
+    }
+}
+
+function playRandomTvShow() {
+    if (currentTvSeriesList && currentTvSeriesList.length > 0) {
+        const randIdx = Math.floor(Math.random() * currentTvSeriesList.length);
+        openTvSeriesDetail(currentTvSeriesList[randIdx].folder);
     }
 }
 
@@ -463,17 +619,22 @@ async function openTvSeriesDetail(seriesFolder) {
         const res = await fetch('/api/tvshows.php?action=episodes&series=' + encodeURIComponent(seriesFolder));
         const episodes = await res.json();
 
+        const seriesInfo = (currentTvSeriesList || []).find(s => s.folder === seriesFolder) || { title: seriesFolder, poster: '' };
+
         let html = `
             <div class="album-detail-view">
                 <button class="back-btn" onclick="loadView('tvshows')">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
                     <span>Back to TV Shows</span>
                 </button>
-                <div class="view-header" style="margin-top:14px;">
-                    <h2>${escapeHtml(seriesFolder)}</h2>
-                    <p style="color:var(--text-secondary);">${episodes.length} Episodes Available</p>
+                <div class="view-header" style="margin-top:14px; display:flex; align-items:center; gap:20px;">
+                    ${seriesInfo.poster ? `<img src="${seriesInfo.poster}" style="width:70px; height:105px; border-radius:8px; object-fit:cover; box-shadow:0 4px 12px rgba(0,0,0,0.5);">` : ''}
+                    <div>
+                        <h2 style="font-size:1.4rem; font-weight:700; color:#fff;">${escapeHtml(seriesInfo.title || seriesFolder)}</h2>
+                        <p style="color:var(--text-secondary); margin-top:4px;">${episodes.length} Episodes • ${seriesInfo.years_span || ''}</p>
+                    </div>
                 </div>
-                <div class="capsule-grid">
+                <div class="capsule-grid" style="margin-top:18px;">
         `;
 
         episodes.forEach((ep, idx) => {

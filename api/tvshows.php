@@ -85,7 +85,55 @@ function parseEpisodeInfo($filename) {
     ];
 }
 
+function getTvCachePath() {
+    $dataDir = defined('DATA_PATH') ? DATA_PATH : (is_dir('/data') ? '/data' : sys_get_temp_dir());
+    return $dataDir . DIRECTORY_SEPARATOR . 'tv_cache.json';
+}
+
+function getTvCache() {
+    $path = getTvCachePath();
+    if (file_exists($path)) {
+        $content = @file_get_contents($path);
+        if ($content) {
+            $json = json_decode($content, true);
+            if (is_array($json)) return $json;
+        }
+    }
+    return [];
+}
+
+function saveTvCache($cache) {
+    $path = getTvCachePath();
+    @file_put_contents($path, json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+}
+
 function cleanTvShowName($raw) {
+    if (stripos($raw, 'Future Diary') !== false || stripos($raw, 'Mirai Nikki') !== false) {
+        return 'The Future Diary';
+    } elseif (stripos($raw, 'Re Zero') !== false || stripos($raw, 'Re:Zero') !== false || stripos($raw, 'Starting Life in Another World') !== false) {
+        return 'Re: ZERO, Starting Life in Another World';
+    } elseif (stripos($raw, 'Another') !== false) {
+        return 'Another';
+    } elseif (stripos($raw, 'Clannad') !== false) {
+        return 'Clannad';
+    } elseif (stripos($raw, 'Cyberpunk') !== false || stripos($raw, 'Edgerunners') !== false) {
+        return 'Cyberpunk: Edgerunners';
+    } elseif (stripos($raw, 'Dark Gathering') !== false) {
+        return 'Dark Gathering';
+    } elseif (stripos($raw, 'Halo') !== false) {
+        return 'Halo';
+    } elseif (stripos($raw, 'School Days') !== false) {
+        return 'School Days';
+    } elseif (stripos($raw, 'Simpsons') !== false) {
+        return 'The Simpsons';
+    } elseif (stripos($raw, 'South Park') !== false) {
+        return 'South Park';
+    } elseif (stripos($raw, 'Toradora') !== false) {
+        return 'Toradora!';
+    } elseif (stripos($raw, 'Yosuga') !== false) {
+        return 'Yosuga no Sora';
+    }
+
     $clean = preg_replace('/(\[.*?\]|\(.*?\))/', ' ', $raw);
     $clean = preg_replace('/(S\d{1,2}|Season\s*\d{1,2}|1080p|2160p|4k|720p|uhd|bluray|web-dl|webrip|hdr|atmos|dts|x264|x265|hevc|ita|eng|latino|dual-lat).*$/i', '', $clean);
     $clean = str_replace(['.', '_', '-'], ' ', $clean);
@@ -95,46 +143,58 @@ function cleanTvShowName($raw) {
 }
 
 function fetchOnlineTvMetadata($showName) {
-    // 1. Try TVMaze API
+    $keys = [
+        "b1523c14d9b4b0e408d66dc8ef0f0c05",
+        "4e44d9029b1270a757cddc766a1bcb63",
+        "843c6756178f8306079986b245037d4f"
+    ];
     $q = urlencode($showName);
+    $ctx = stream_context_create(['http' => ['timeout' => 4, 'header' => "User-Agent: Mozilla/5.0\r\n"]]);
+    
+    // 1. TMDB TV Search
+    foreach ($keys as $k) {
+        $url = "https://api.themoviedb.org/3/search/tv?api_key={$k}&query={$q}";
+        $res = @file_get_contents($url, false, $ctx);
+        if ($res) {
+            $data = json_decode($res, true);
+            if (!empty($data['results'][0]['poster_path'])) {
+                $top = $data['results'][0];
+                $firstAir = !empty($top['first_air_date']) ? substr($top['first_air_date'], 0, 4) : '';
+                return [
+                    'title' => $showName,
+                    'poster' => "https://image.tmdb.org/t/p/w780" . $top['poster_path'],
+                    'rating' => !empty($top['vote_average']) ? round($top['vote_average'], 1) : '8.8',
+                    'year' => $firstAir,
+                    'years_span' => $firstAir ? "{$firstAir} – Present" : '',
+                    'overview' => $top['overview'] ?? ''
+                ];
+            }
+        }
+    }
+
+    // 2. TVMaze Fallback
     $url = "https://api.tvmaze.com/singlesearch/shows?q={$q}";
-    $ctx = stream_context_create(['http' => ['timeout' => 3, 'header' => "User-Agent: Mozilla/5.0\r\n"]]);
     $res = @file_get_contents($url, false, $ctx);
     if ($res) {
         $data = json_decode($res, true);
         if (!empty($data['image'])) {
             $img = $data['image']['original'] ?? $data['image']['medium'] ?? null;
             if ($img) {
+                $prem = !empty($data['premiered']) ? substr($data['premiered'], 0, 4) : '';
+                $ended = !empty($data['ended']) ? substr($data['ended'], 0, 4) : '';
+                $span = ($prem && $ended) ? "{$prem} – {$ended}" : ($prem ? "{$prem} – Present" : '');
                 return [
                     'title' => $data['name'] ?? $showName,
                     'poster' => $img,
                     'rating' => !empty($data['rating']['average']) ? round($data['rating']['average'], 1) : '8.8',
+                    'year' => $prem,
+                    'years_span' => $span,
                     'overview' => strip_tags($data['summary'] ?? '')
                 ];
             }
         }
     }
 
-    // 2. Try TMDB TV API
-    $keys = [
-        "b1523c14d9b4b0e408d66dc8ef0f0c05",
-        "4e44d9029b1270a757cddc766a1bcb63"
-    ];
-    foreach ($keys as $k) {
-        $url = "https://api.themoviedb.org/3/search/tv?api_key={$k}&query={$q}";
-        $res2 = @file_get_contents($url, false, $ctx);
-        if ($res2) {
-            $d2 = json_decode($res2, true);
-            if (!empty($d2['results'][0]['poster_path'])) {
-                return [
-                    'title' => $d2['results'][0]['name'] ?? $showName,
-                    'poster' => "https://image.tmdb.org/t/p/w780" . $d2['results'][0]['poster_path'],
-                    'rating' => !empty($d2['results'][0]['vote_average']) ? round($d2['results'][0]['vote_average'], 1) : '8.8',
-                    'overview' => $d2['results'][0]['overview'] ?? ''
-                ];
-            }
-        }
-    }
     return null;
 }
 
@@ -147,66 +207,83 @@ try {
                 break;
             }
 
+            $cache = getTvCache();
+            $cacheUpdated = false;
+            $forceRefresh = isset($_GET['refresh']);
+
             $seriesList = [];
             $rii = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::SELF_FIRST
             );
 
-            // Group episodes by Series Name
+            // 1. Group episodes by top-level series folder
             $shows = [];
             foreach ($rii as $file) {
                 if ($file->isFile()) {
                     $ext = strtolower($file->getExtension());
                     if (in_array($ext, ['mkv', 'mp4', 'avi', 'mov', 'webm'])) {
                         $fileSize = $file->getSize();
-                        if ($fileSize < 50 * 1024 * 1024) continue; // Skip sample files < 50MB
+                        if ($fileSize < 20 * 1024 * 1024) continue; // Skip tiny sample files < 20MB
 
                         $filePath = $file->getPathname();
                         $rel = ltrim(str_replace($dir, '', $filePath), '/\\');
                         $parts = explode(DIRECTORY_SEPARATOR, $rel);
 
-                        // Series Name is top folder or second folder
-                        $showName = $parts[0];
-                        if (stripos($showName, 'Season') !== false && count($parts) > 1) {
-                            $showName = pathinfo($filePath, PATHINFO_FILENAME);
+                        // Series Name is always top folder
+                        $showFolder = $parts[0];
+                        if (empty($showFolder) || $showFolder === '.' || $showFolder === '..') {
+                            $showFolder = pathinfo($filePath, PATHINFO_FILENAME);
                         }
 
-                        if (!isset($shows[$showName])) {
-                            $cleanTitle = cleanTvShowName($showName);
-                            $online = fetchOnlineTvMetadata($cleanTitle);
-                            $shows[$showName] = [
-                                'name' => $online['title'] ?? $cleanTitle,
-                                'folder' => $showName,
+                        if (!isset($shows[$showFolder])) {
+                            $shows[$showFolder] = [
+                                'folder' => $showFolder,
                                 'episodes' => [],
                                 'seasons' => [],
                                 'sample_file' => $filePath,
-                                'total_size' => 0,
-                                'poster' => !empty($online['poster']) ? $online['poster'] : ("/api/tvshows.php?action=poster&file=" . urlencode($filePath)),
-                                'rating' => $online['rating'] ?? '8.8'
+                                'total_size' => 0
                             ];
                         }
 
                         $parsed = parseEpisodeInfo($file->getFilename());
-                        $shows[$showName]['episodes'][] = $filePath;
-                        $shows[$showName]['seasons'][$parsed['season']] = true;
-                        $shows[$showName]['total_size'] += $fileSize;
+                        $shows[$showFolder]['episodes'][] = $filePath;
+                        $shows[$showFolder]['seasons'][$parsed['season']] = true;
+                        $shows[$showFolder]['total_size'] += $fileSize;
                     }
                 }
             }
 
+            // 2. Enrich distinct series with metadata & online posters
             $idCount = 1;
             foreach ($shows as $folder => $info) {
+                $cleanTitle = cleanTvShowName($folder);
+                
+                $cachedMeta = (!$forceRefresh && isset($cache[$folder])) ? $cache[$folder] : null;
+                if (!$cachedMeta) {
+                    $cachedMeta = fetchOnlineTvMetadata($cleanTitle);
+                    if ($cachedMeta) {
+                        $cache[$folder] = $cachedMeta;
+                        $cacheUpdated = true;
+                    }
+                }
+
                 $seriesList[] = [
                     'id' => $idCount++,
-                    'title' => $info['name'],
+                    'title' => $cachedMeta['title'] ?? $cleanTitle,
                     'folder' => $folder,
                     'season_count' => count($info['seasons']),
                     'episode_count' => count($info['episodes']),
                     'formatted_size' => round($info['total_size'] / (1024 * 1024 * 1024), 2) . ' GB',
-                    'poster' => $info['poster'],
-                    'rating' => $info['rating']
+                    'poster' => !empty($cachedMeta['poster']) ? $cachedMeta['poster'] : ("/api/tvshows.php?action=poster&file=" . urlencode($info['sample_file'])),
+                    'rating' => $cachedMeta['rating'] ?? '8.8',
+                    'year' => $cachedMeta['year'] ?? '',
+                    'years_span' => !empty($cachedMeta['years_span']) ? $cachedMeta['years_span'] : ($cachedMeta['year'] ?: '')
                 ];
+            }
+
+            if ($cacheUpdated) {
+                saveTvCache($cache);
             }
 
             usort($seriesList, function($a, $b) {
