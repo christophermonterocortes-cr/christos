@@ -944,8 +944,8 @@ const CinemaPlayer = {
         });
 
         this.modal.innerHTML = `
-            <style id="cinema-player-inline-styles">
-                .theater-modal { position: fixed !important; inset: 0 !important; z-index: 999999 !important; background: #000000 !important; display: flex !important; flex-direction: column !important; overflow: hidden !important; color: #ffffff !important; user-select: none !important; -webkit-user-select: none !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important; }
+                .theater-modal { position: fixed !important; inset: 0 !important; z-index: 999999 !important; background: #000000 !important; display: none; flex-direction: column !important; overflow: hidden !important; color: #ffffff !important; user-select: none !important; -webkit-user-select: none !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important; }
+                .theater-modal.active { display: flex !important; }
                 .theater-modal.cursor-hidden { cursor: none !important; }
                 .theater-viewport { position: relative !important; width: 100vw !important; height: 100vh !important; display: flex !important; align-items: center !important; justify-content: center !important; background: #000000 !important; overflow: hidden !important; }
                 .theater-video-elem { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important; background: #000000 !important; }
@@ -1136,6 +1136,7 @@ const CinemaPlayer = {
             </div>
         `;
 
+        this.modal.style.setProperty('display', 'flex', 'important');
         this.modal.classList.add('active');
         this.video = document.getElementById('theater-video-player');
         this.setupEvents();
@@ -1625,8 +1626,14 @@ const CinemaPlayer = {
     },
 
     close() {
-        if (this.nextEpTimeout) clearInterval(this.nextEpTimeout);
-        if (this.controlsTimeout) clearTimeout(this.controlsTimeout);
+        if (this.nextEpTimeout) {
+            clearInterval(this.nextEpTimeout);
+            this.nextEpTimeout = null;
+        }
+        if (this.controlsTimeout) {
+            clearTimeout(this.controlsTimeout);
+            this.controlsTimeout = null;
+        }
 
         if (this.video) {
             this.video.pause();
@@ -1644,6 +1651,8 @@ const CinemaPlayer = {
 
         if (this.modal) {
             this.modal.classList.remove('active', 'theater-controls-hidden', 'cursor-hidden');
+            this.modal.style.setProperty('display', 'none', 'important');
+            this.modal.innerHTML = '';
         }
     },
 
