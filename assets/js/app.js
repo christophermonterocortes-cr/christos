@@ -574,22 +574,52 @@ function renderMoviesHtml() {
     const currentSortLabel = sortLabels[window.currentMovieSort] || 'Title ↑';
 
     let html = `
+        <style>
+            .cinema-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding: 0 4px; flex-wrap: wrap; gap: 10px; }
+            .cinema-items-count { font-size: 0.95rem; font-weight: 600; color: #94a3b8; }
+            .cinema-topbar-right { display: flex; align-items: center; gap: 8px; position: relative; }
+            .cinema-action-btn { display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14); color: #fff; padding: 6px 14px; border-radius: 18px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(10px); }
+            .cinema-action-btn:hover { background: rgba(255, 255, 255, 0.16); }
+            .cinema-action-btn.primary { background: var(--accent-color, #fa233b); border-color: var(--accent-color, #fa233b); color: #fff; box-shadow: 0 4px 14px rgba(250, 35, 59, 0.35); }
+            .cinema-action-btn.icon-only { padding: 6px 10px; border-radius: 50%; }
+            .cinema-sort-dropdown { position: relative; }
+            .cinema-sort-menu { display: none; position: absolute; top: calc(100% + 6px); right: 0; background: #161824; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 6px; min-width: 180px; z-index: 999; box-shadow: 0 12px 30px rgba(0,0,0,0.7); }
+            .cinema-sort-menu.active { display: block !important; }
+            .sort-menu-item { padding: 8px 12px; font-size: 0.82rem; color: #ccc; border-radius: 6px; cursor: pointer; }
+            .sort-menu-item:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+            .sort-menu-item.active { background: var(--accent-color, #fa233b); color: #fff; font-weight: 700; }
+            .cinema-poster-grid { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(110px, 135px)) !important; gap: 18px 14px !important; justify-content: start !important; width: 100% !important; box-sizing: border-box !important; }
+            .cinema-movie-card { display: flex !important; flex-direction: column !important; width: 100% !important; max-width: 135px !important; cursor: pointer !important; transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) !important; }
+            .cinema-movie-card:hover { transform: translateY(-3px) !important; }
+            .cinema-poster-art { position: relative !important; width: 100% !important; aspect-ratio: 2 / 3 !important; max-height: 202px !important; background: #141622 !important; border-radius: 8px !important; overflow: hidden !important; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; }
+            .cinema-poster-img { width: 100% !important; height: 100% !important; max-height: 202px !important; object-fit: cover !important; display: block !important; transition: transform 0.25s ease !important; }
+            .cinema-movie-card:hover .cinema-poster-img { transform: scale(1.05) !important; }
+            .movie-poster-badge { position: absolute !important; top: 6px !important; left: 6px !important; background: rgba(0, 0, 0, 0.75) !important; color: #fff !important; font-size: 0.58rem !important; font-weight: 800 !important; padding: 1px 4px !important; border-radius: 4px !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; z-index: 2 !important; }
+            .movie-poster-badge.hdr { left: auto !important; right: 6px !important; background: rgba(234, 179, 8, 0.9) !important; color: #000 !important; border: none !important; }
+            .cinema-play-hover { position: absolute !important; inset: 0 !important; background: rgba(0, 0, 0, 0.35) !important; backdrop-filter: blur(1.5px) !important; display: flex !important; align-items: center !important; justify-content: center !important; opacity: 0 !important; transition: opacity 0.2s ease !important; z-index: 3 !important; }
+            .cinema-movie-card:hover .cinema-play-hover { opacity: 1 !important; }
+            .cinema-play-circle { width: 36px !important; height: 36px !important; border-radius: 50% !important; background: var(--accent-color, #fa233b) !important; color: #fff !important; display: flex !important; align-items: center !important; justify-content: center !important; box-shadow: 0 3px 12px var(--accent-glow, rgba(250, 35, 59, 0.5)) !important; }
+            .cinema-movie-details { margin-top: 6px !important; display: flex !important; flex-direction: column !important; gap: 2px !important; }
+            .cinema-movie-title { font-size: 0.82rem !important; font-weight: 600 !important; color: #ffffff !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; line-height: 1.2 !important; }
+            .cinema-movie-year { font-size: 0.74rem !important; color: #8e8e9f !important; font-weight: 400 !important; }
+        </style>
+
         <div class="cinema-topbar">
             <div class="cinema-topbar-left">
                 <span class="cinema-items-count">${currentMoviesList.length} Items</span>
             </div>
             <div class="cinema-topbar-right">
                 <button class="cinema-action-btn primary" onclick="playFirstMovie()" title="Play All">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
                     <span>Play</span>
                 </button>
                 <button class="cinema-action-btn" onclick="playRandomMovie()" title="Shuffle Play">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
                     <span>Shuffle</span>
                 </button>
                 <div class="cinema-sort-dropdown">
                     <button class="cinema-action-btn" onclick="toggleMovieSortMenu(event)" title="Sort Movies">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="12" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 9 20 6 23 9"/><line x1="20" y1="6" x2="20" y2="18"/></svg>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="12" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 9 20 6 23 9"/><line x1="20" y1="6" x2="20" y2="18"/></svg>
                         <span>${currentSortLabel}</span>
                     </button>
                     <div id="movie-sort-menu" class="cinema-sort-menu">
@@ -602,7 +632,7 @@ function renderMoviesHtml() {
                     </div>
                 </div>
                 <button class="cinema-action-btn icon-only" onclick="renderMoviesView(true)" title="Refresh Metadata & Posters Online">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 </button>
             </div>
         </div>
@@ -630,7 +660,7 @@ function renderMoviesHtml() {
                         </div>
                         <div class="cinema-play-hover">
                             <div class="cinema-play-circle">
-                                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
                             </div>
                         </div>
                     </div>

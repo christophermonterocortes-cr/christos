@@ -264,11 +264,10 @@ try {
                     if (in_array($ext, ['mkv', 'mp4', 'avi', 'mov', 'webm'])) {
                         $filePath = $file->getPathname();
                         $fileSize = $file->getSize();
-                        
-                        // Ignore tiny sample or extra videos (< 100MB)
                         if ($fileSize < 100 * 1024 * 1024) continue;
-
+                        
                         $filename = $file->getFilename();
+                        if (stripos($filename, 'doodstream') !== false || preg_match('/^[0-9a-f\-]{20,}/i', $filename)) continue;
                         $cacheKey = md5($filePath);
 
                         if (!$forceRefresh && isset($cache[$cacheKey]) && is_array($cache[$cacheKey]) && !empty($cache[$cacheKey]['title']) && !empty($cache[$cacheKey]['poster']) && strpos($cache[$cacheKey]['poster'], 'http') !== false) {
