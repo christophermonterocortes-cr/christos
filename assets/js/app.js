@@ -1886,8 +1886,6 @@ function pollDownloaderStatus() {
    5. GLOBAL SPOTLIGHT SEARCH MODAL (Ctrl + K)
    ============================================================ */
 let spotlightDebounce = null;
-
-let spotlightDebounce = null;
 let activeSpotlightCategory = 'all';
 
 function initSpotlightSearch() {
