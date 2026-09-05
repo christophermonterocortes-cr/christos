@@ -215,7 +215,7 @@ const Player = {
                         this.currentTrack = track;
                         this.updateMetadataUI(track);
                         this.fetchLyrics(track.id);
-                        this.activeAudio.src = `/api/stream.php?id=${track.id}`;
+                        this.activeAudio.src = track.stream_url || `/api/stream.php?id=${track.id}`;
                         if (sess.time && sess.time > 0) {
                             this.activeAudio.currentTime = sess.time;
                         }
@@ -507,7 +507,7 @@ const Player = {
 
         this.fetchLyrics(track.id);
 
-        const streamUrl = `/api/stream.php?id=${track.id}`;
+        const streamUrl = track.stream_url || `/api/stream.php?id=${track.id}`;
         this.activeAudio.src = streamUrl;
         this.activeAudio.currentTime = 0;
 
@@ -515,6 +515,9 @@ const Player = {
             await this.fadePlay(0.15);
             if (typeof Visualizer !== 'undefined' && this.analyser) {
                 Visualizer.start(this.analyser);
+            }
+            if (typeof DSP !== 'undefined' && DSP.applyNightcore) {
+                DSP.applyNightcore();
             }
             this.updateMediaSession(track);
             this.saveSession();
@@ -1103,12 +1106,15 @@ const Player = {
         this.currentTrack = trackMeta;
         this.updateMetadataUI(trackMeta);
 
-        if (!streamUrl) streamUrl = `/api/stream.php?id=${trackMeta.id}`;
+        if (!streamUrl) streamUrl = trackMeta.stream_url || `/api/stream.php?id=${trackMeta.id}`;
         this.activeAudio.src = streamUrl;
         this.activeAudio.currentTime = 0;
         this.activeAudio.play().then(() => {
             if (typeof Visualizer !== 'undefined' && this.analyser) {
                 Visualizer.start(this.analyser);
+            }
+            if (typeof DSP !== 'undefined' && DSP.applyNightcore) {
+                DSP.applyNightcore();
             }
             this.updateMediaSession(trackMeta);
         }).catch(err => console.error("Playback error:", err));

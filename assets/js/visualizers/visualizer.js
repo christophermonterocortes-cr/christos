@@ -1,4 +1,7 @@
 // CHRISTOS Master Audio Visualizer Engine
+// Featuring Legacy 2D/3D visualizers + NofufAudio Studio Visualizer Engine
+// Styles: Bars, Mirror, Wave, Floating Dots, Pulsing Circle with Destination-Out Top Fadeout
+
 const Visualizer = {
     canvas2d: null,
     canvas3d: null,
@@ -8,6 +11,12 @@ const Visualizer = {
     analyser: null,
     isInitialized: false,
 
+    // NofufAudio Visualizer Settings
+    vizSensitivity: 1.5,
+    vizOpacity: 90,
+    vizShadow: true,
+    vizColor: 'accent', // 'accent', '#ffffff', '#38bdf8', '#4ade80', '#f43f5e', '#fbbf24'
+
     init() {
         if (this.isInitialized) return;
 
@@ -16,9 +25,32 @@ const Visualizer = {
 
         if (this.canvas2d) this.ctx = this.canvas2d.getContext('2d');
 
+        // Load saved visualizer preferences
+        this.vizSensitivity = parseFloat(localStorage.getItem('christos_viz_sensitivity') || '1.5');
+        this.vizOpacity = parseInt(localStorage.getItem('christos_viz_opacity') || '90', 10);
+        this.vizShadow = localStorage.getItem('christos_viz_shadow') !== 'false';
+        this.vizColor = localStorage.getItem('christos_viz_color') || 'accent';
+
+        this.applyCanvasOpacity();
         this.resize();
         window.addEventListener('resize', () => this.resize());
         this.isInitialized = true;
+    },
+
+    applyCanvasOpacity() {
+        if (this.canvas2d) {
+            this.canvas2d.style.opacity = (this.vizOpacity / 100).toString();
+        }
+        if (this.canvas3d) {
+            this.canvas3d.style.opacity = (this.vizOpacity / 100).toString();
+        }
+    },
+
+    getResolvedColor() {
+        if (this.vizColor === 'accent' || !this.vizColor) {
+            return getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim() || '#fa233b';
+        }
+        return this.vizColor;
     },
 
     resize() {
@@ -110,6 +142,21 @@ const Visualizer = {
         if (!ctx || W <= 0 || H <= 0) return;
 
         switch (this.currentViz) {
+            case 11:
+                this.drawNofufBars(ctx, W, H, freqData);
+                break;
+            case 12:
+                this.drawNofufMirror(ctx, W, H, freqData);
+                break;
+            case 13:
+                this.drawNofufWave(ctx, W, H, freqData);
+                break;
+            case 14:
+                this.drawNofufDots(ctx, W, H, freqData);
+                break;
+            case 15:
+                this.drawNofufCircle(ctx, W, H, freqData);
+                break;
             case 7:
                 if (typeof XboxVisualizer !== 'undefined') {
                     XboxVisualizer.draw(ctx, W, H, freqData, timeData);
@@ -150,6 +197,184 @@ const Visualizer = {
                 }
                 break;
         }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // NOFUFAUDIO VISUALIZER SUITE (BARS, MIRROR, WAVE, DOTS, CIRCLE)
+    // ═══════════════════════════════════════════════════════════════
+
+    applyTopFadeout(ctx, W, H) {
+        ctx.shadowBlur = 0;
+        const fadeH = Math.round(H * 0.35);
+        const fade = ctx.createLinearGradient(0, 0, 0, fadeH);
+        fade.addColorStop(0, 'rgba(0, 0, 0, 1)');
+        fade.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = fade;
+        ctx.fillRect(0, 0, W, fadeH);
+        ctx.globalCompositeOperation = 'source-over';
+    },
+
+    drawNofufBars(ctx, W, H, freqData) {
+        ctx.clearRect(0, 0, W, H);
+        const color = this.getResolvedColor();
+        const sens = this.vizSensitivity;
+
+        if (this.vizShadow) {
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = color;
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.fillStyle = color;
+        const n = freqData.length;
+        const useBins = Math.floor(n * 0.60);
+        const barW = W / useBins;
+
+        for (let i = 0; i < useBins; i++) {
+            const v = (freqData[i] / 255) * sens;
+            const bh = Math.min(H, v * H);
+            ctx.fillRect(i * barW, H - bh, Math.max(1, barW - 1), bh);
+        }
+
+        this.applyTopFadeout(ctx, W, H);
+    },
+
+    drawNofufMirror(ctx, W, H, freqData) {
+        ctx.clearRect(0, 0, W, H);
+        const color = this.getResolvedColor();
+        const sens = this.vizSensitivity;
+
+        if (this.vizShadow) {
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = color;
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.fillStyle = color;
+        const n = freqData.length;
+        const useBins = Math.floor(n * 0.60);
+        const barW = W / useBins;
+
+        for (let i = 0; i < useBins; i++) {
+            const v = (freqData[i] / 255) * sens;
+            const bh = Math.min(H, v * H);
+            ctx.fillRect(i * barW, (H - bh) / 2, Math.max(1, barW - 1), bh);
+        }
+
+        this.applyTopFadeout(ctx, W, H);
+    },
+
+    drawNofufWave(ctx, W, H, freqData) {
+        ctx.clearRect(0, 0, W, H);
+        const color = this.getResolvedColor();
+        const sens = this.vizSensitivity;
+
+        if (this.vizShadow) {
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = color;
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+
+        const n = freqData.length;
+        const useBins = Math.floor(n * 0.60);
+
+        ctx.beginPath();
+        for (let i = 0; i < useBins; i++) {
+            const x = (i / useBins) * W;
+            const v = (freqData[i] / 255) * sens;
+            const y = H - v * H * 0.90;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+
+        ctx.lineTo(W, H);
+        ctx.lineTo(0, H);
+        ctx.closePath();
+        ctx.globalAlpha = 0.35;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+        ctx.stroke();
+
+        this.applyTopFadeout(ctx, W, H);
+    },
+
+    drawNofufDots(ctx, W, H, freqData) {
+        ctx.clearRect(0, 0, W, H);
+        const color = this.getResolvedColor();
+        const sens = this.vizSensitivity;
+
+        if (this.vizShadow) {
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = color;
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.fillStyle = color;
+        const n = freqData.length;
+        const useBins = Math.floor(n * 0.60);
+
+        for (let i = 0; i < useBins; i++) {
+            const x = (i / useBins) * W;
+            const v = (freqData[i] / 255) * sens;
+            const r = Math.max(1.5, v * 6.5);
+            ctx.beginPath();
+            ctx.arc(x, H - v * H * 0.85, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        this.applyTopFadeout(ctx, W, H);
+    },
+
+    drawNofufCircle(ctx, W, H, freqData) {
+        ctx.clearRect(0, 0, W, H);
+        const color = this.getResolvedColor();
+        const sens = this.vizSensitivity;
+
+        if (this.vizShadow) {
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = color;
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.fillStyle = color;
+        ctx.strokeStyle = color;
+
+        const cx = W / 2;
+        const cy = H / 2;
+        const baseR = Math.min(W, H) * 0.22;
+        const n = freqData.length;
+        const useBins = Math.floor(n * 0.60);
+
+        ctx.lineWidth = 2.2;
+        for (let i = 0; i < useBins; i++) {
+            const angle = (i / useBins) * Math.PI * 2 - Math.PI / 2;
+            const v = (freqData[i] / 255) * sens;
+            const r = baseR + v * baseR * 1.25;
+            const x1 = cx + Math.cos(angle) * baseR;
+            const y1 = cy + Math.sin(angle) * baseR;
+            const x2 = cx + Math.cos(angle) * r;
+            const y2 = cy + Math.sin(angle) * r;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+        ctx.globalAlpha = 0.18;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
     },
 
     drawNCS(ctx, W, H, dataArray) {
@@ -236,8 +461,146 @@ const Visualizer = {
     },
 
     cycle() {
-        const next = (this.currentViz % 10) + 1;
+        const next = (this.currentViz % 15) + 1;
         this.change(next);
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // VISUALIZER TUNING DRAWER ENGINE
+    // ═══════════════════════════════════════════════════════════════
+
+    toggleSettingsDrawer() {
+        let drawer = document.getElementById('viz-settings-drawer');
+        if (!drawer) {
+            this.createSettingsDrawer();
+            drawer = document.getElementById('viz-settings-drawer');
+        }
+        drawer.classList.toggle('open');
+    },
+
+    openSettingsDrawer() {
+        let drawer = document.getElementById('viz-settings-drawer');
+        if (!drawer) {
+            this.createSettingsDrawer();
+            drawer = document.getElementById('viz-settings-drawer');
+        }
+        drawer.classList.add('open');
+    },
+
+    closeSettingsDrawer() {
+        const drawer = document.getElementById('viz-settings-drawer');
+        if (drawer) drawer.classList.remove('open');
+    },
+
+    setSensitivity(val) {
+        this.vizSensitivity = parseFloat(val);
+        localStorage.setItem('christos_viz_sensitivity', this.vizSensitivity);
+        const lbl = document.getElementById('viz-sd-sens-val');
+        if (lbl) lbl.textContent = this.vizSensitivity.toFixed(1) + '×';
+    },
+
+    setOpacity(val) {
+        this.vizOpacity = parseInt(val, 10);
+        localStorage.setItem('christos_viz_opacity', this.vizOpacity);
+        this.applyCanvasOpacity();
+        const lbl = document.getElementById('viz-sd-op-val');
+        if (lbl) lbl.textContent = this.vizOpacity + '%';
+    },
+
+    setShadow(val) {
+        this.vizShadow = !!val;
+        localStorage.setItem('christos_viz_shadow', this.vizShadow);
+    },
+
+    setColor(val) {
+        this.vizColor = val;
+        localStorage.setItem('christos_viz_color', this.vizColor);
+        document.querySelectorAll('.viz-qc').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.vc === val);
+        });
+    },
+
+    createSettingsDrawer() {
+        const drawer = document.createElement('div');
+        drawer.id = 'viz-settings-drawer';
+        drawer.className = 'viz-settings-drawer';
+
+        const curSens = this.vizSensitivity;
+        const curOp = this.vizOpacity;
+        const curGlow = this.vizShadow;
+        const curColor = this.vizColor;
+
+        drawer.innerHTML = `
+            <div class="viz-drawer-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <h4 style="margin:0; font-size:1rem; font-weight:700; color:#fff;">Visualizer Tuning</h4>
+                </div>
+                <button class="fullscreen-exit-btn" onclick="Visualizer.closeSettingsDrawer()">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <!-- Style Selector Pills -->
+            <div style="margin-bottom:16px;">
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary); margin-bottom:6px; font-weight:600;">ACTIVE STYLE</label>
+                <div class="viz-style-grid">
+                    <button class="viz-style-pill ${this.currentViz===11?'active':''}" onclick="Visualizer.change(11)">Nofuf Bars</button>
+                    <button class="viz-style-pill ${this.currentViz===12?'active':''}" onclick="Visualizer.change(12)">Mirror Bars</button>
+                    <button class="viz-style-pill ${this.currentViz===13?'active':''}" onclick="Visualizer.change(13)">Audio Wave</button>
+                    <button class="viz-style-pill ${this.currentViz===14?'active':''}" onclick="Visualizer.change(14)">Star Dots</button>
+                    <button class="viz-style-pill ${this.currentViz===15?'active':''}" onclick="Visualizer.change(15)">Core Circle</button>
+                    <button class="viz-style-pill ${this.currentViz===7?'active':''}" onclick="Visualizer.change(7)">Xbox 2001</button>
+                    <button class="viz-style-pill ${this.currentViz===8?'active':''}" onclick="Visualizer.change(8)">Synthwave</button>
+                    <button class="viz-style-pill ${this.currentViz===9?'active':''}" onclick="Visualizer.change(9)">VU Meter</button>
+                </div>
+            </div>
+
+            <!-- Sensitivity -->
+            <div style="margin-bottom:14px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                    <span style="font-size:0.8rem; color:#fff; font-weight:600;">Sensitivity</span>
+                    <span id="viz-sd-sens-val" style="font-size:0.8rem; color:var(--accent-color); font-weight:700;">${curSens.toFixed(1)}×</span>
+                </div>
+                <input type="range" min="0.5" max="3.0" step="0.1" value="${curSens}" oninput="Visualizer.setSensitivity(this.value)" style="width:100%;">
+                <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:#777; margin-top:2px;">
+                    <span>0.5× Calm</span><span>1.5× Default</span><span>3.0× High</span>
+                </div>
+            </div>
+
+            <!-- Opacity -->
+            <div style="margin-bottom:14px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                    <span style="font-size:0.8rem; color:#fff; font-weight:600;">Opacity</span>
+                    <span id="viz-sd-op-val" style="font-size:0.8rem; color:var(--accent-color); font-weight:700;">${curOp}%</span>
+                </div>
+                <input type="range" min="20" max="100" step="5" value="${curOp}" oninput="Visualizer.setOpacity(this.value)" style="width:100%;">
+            </div>
+
+            <!-- Glow / Shadow -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <span style="font-size:0.8rem; color:#fff; font-weight:600;">Neon Shadow Glow</span>
+                <label class="switch-toggle" style="cursor:pointer;">
+                    <input type="checkbox" ${curGlow?'checked':''} onchange="Visualizer.setShadow(this.checked)">
+                    <span style="color:var(--text-secondary); font-size:0.75rem;">Enable</span>
+                </label>
+            </div>
+
+            <!-- Color Options -->
+            <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-secondary); margin-bottom:8px; font-weight:600;">COLOR THEME</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button class="viz-qc ${curColor==='accent'?'active':''}" data-vc="accent" onclick="Visualizer.setColor('accent')" title="Theme Accent" style="background:var(--accent-color);"></button>
+                    <button class="viz-qc ${curColor==='#ffffff'?'active':''}" data-vc="#ffffff" onclick="Visualizer.setColor('#ffffff')" title="Pure White" style="background:#ffffff;"></button>
+                    <button class="viz-qc ${curColor==='#38bdf8'?'active':''}" data-vc="#38bdf8" onclick="Visualizer.setColor('#38bdf8')" title="Electric Cyan" style="background:#38bdf8;"></button>
+                    <button class="viz-qc ${curColor==='#4ade80'?'active':''}" data-vc="#4ade80" onclick="Visualizer.setColor('#4ade80')" title="Matrix Green" style="background:#4ade80;"></button>
+                    <button class="viz-qc ${curColor==='#f43f5e'?'active':''}" data-vc="#f43f5e" onclick="Visualizer.setColor('#f43f5e')" title="Neon Pink" style="background:#f43f5e;"></button>
+                    <button class="viz-qc ${curColor==='#fbbf24'?'active':''}" data-vc="#fbbf24" onclick="Visualizer.setColor('#fbbf24')" title="Amber Sun" style="background:#fbbf24;"></button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(drawer);
     }
 };
 

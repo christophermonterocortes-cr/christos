@@ -108,6 +108,9 @@ function initGlobalShortcuts() {
         } else if (e.key === 'e' || e.key === 'E') {
             e.preventDefault();
             if (typeof DSP !== 'undefined') DSP.openModal();
+        } else if (e.key === 'c' || e.key === 'C') {
+            e.preventDefault();
+            if (typeof DSP !== 'undefined' && DSP.openNightcoreModal) DSP.openNightcoreModal();
         }
     });
 }
@@ -1716,6 +1719,8 @@ async function renderDownloaderView() {
                             <option value="tidal">Tidal (Master / MAX Hi-Res FLAC)</option>
                             <option value="amazon">Amazon Music (Ultra HD Lossless)</option>
                             <option value="apple">Apple Music (Lossless ALAC / Atmos)</option>
+                            <option value="spotify">Spotify Playlist (Parse & Batch Fetch)</option>
+                            <option value="youtube_playlist">YouTube Playlist (Batch Downloader)</option>
                         </select>
                     </div>
 
@@ -1731,13 +1736,19 @@ async function renderDownloaderView() {
                 </div>
 
                 <div class="downloader-input-group">
-                    <input type="url" id="downloader-url-input" class="downloader-input" placeholder="Paste Qobuz, Tidal, Amazon Music, or Apple Music link..." autocomplete="off">
+                    <input type="url" id="downloader-url-input" class="downloader-input" placeholder="Paste Qobuz, Tidal, Amazon, Apple, Spotify, or YouTube playlist link..." autocomplete="off">
+                    <button class="btn btn-secondary" onclick="parsePlaylistPreview()" style="margin-right:6px;" title="Inspect & Preview tracks">
+                        🔍 Preview Playlist
+                    </button>
                     <button class="btn btn-primary downloader-submit-btn" onclick="startUniversalDownload()">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         <span>Download Lossless</span>
                     </button>
                 </div>
             </div>
+
+            <!-- Optional Playlist Preview Card -->
+            <div id="downloader-playlist-preview" style="display:none; margin-top:16px;"></div>
 
             <div class="downloader-card" style="margin-top:20px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -1750,6 +1761,71 @@ async function renderDownloaderView() {
     `;
 
     pollDownloaderStatus();
+}
+
+async function parsePlaylistPreview() {
+    const input = document.getElementById('downloader-url-input');
+    const container = document.getElementById('downloader-playlist-preview');
+    if (!input || !container) return;
+    const url = input.value.trim();
+    if (!url) {
+        alert("Please paste a Spotify or YouTube Playlist link first.");
+        return;
+    }
+
+    container.style.display = 'block';
+    container.innerHTML = `<div class="downloader-card" style="padding:20px; text-align:center; color:var(--text-secondary);"><div class="spinner" style="margin:0 auto 10px auto;"></div>Parsing playlist metadata and tracks...</div>`;
+
+    try {
+        let action = 'parse_spotify';
+        if (url.includes('youtube.com') || url.includes('youtu.be')) {
+            action = 'parse_youtube_playlist';
+        }
+
+        const res = await fetch(`/api/downloader.php?action=${action}&url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+
+        if (data.status === 'success') {
+            const tracks = data.tracks || [];
+            let rowsHtml = '';
+            tracks.slice(0, 50).forEach((tr, i) => {
+                rowsHtml += `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:0.85rem;">
+                        <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+                            <span style="color:var(--text-secondary); width:24px; font-weight:700;">${i + 1}</span>
+                            <div style="min-width:0;">
+                                <div style="color:#fff; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(tr.title)}</div>
+                                <div style="color:var(--text-secondary); font-size:0.75rem;">${escapeHtml(tr.artist || 'Unknown')}</div>
+                            </div>
+                        </div>
+                        <span style="color:#888; font-size:0.75rem;">${tr.duration ? formatDuration(tr.duration) : ''}</span>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="downloader-card" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:18px;">
+                    <div style="display:flex; gap:16px; align-items:center; margin-bottom:16px;">
+                        ${data.cover ? `<img src="${data.cover}" style="width:70px; height:70px; border-radius:8px; object-fit:cover;">` : ''}
+                        <div style="flex:1;">
+                            <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin:0 0 4px 0;">${escapeHtml(data.title || 'Imported Playlist')}</h3>
+                            <div style="color:var(--text-secondary); font-size:0.85rem;">${escapeHtml(data.author || 'Platform Playlist')} • ${tracks.length} Tracks</div>
+                        </div>
+                        <button class="btn btn-primary" onclick="startUniversalDownload()" style="padding:8px 16px; font-size:0.85rem;">
+                            ⬇ Download All ${tracks.length} Tracks
+                        </button>
+                    </div>
+                    <div style="max-height:280px; overflow-y:auto; background:rgba(0,0,0,0.2); border-radius:8px;">
+                        ${rowsHtml}
+                    </div>
+                </div>
+            `;
+        } else {
+            container.innerHTML = `<div class="downloader-card" style="padding:16px; color:#fa233b;">Failed to parse playlist: ${escapeHtml(data.error || 'Unknown error')}</div>`;
+        }
+    } catch (err) {
+        container.innerHTML = `<div class="downloader-card" style="padding:16px; color:#fa233b;">Parser request failed: ${escapeHtml(err.message)}</div>`;
+    }
 }
 
 async function startUniversalDownload() {
@@ -1838,6 +1914,7 @@ function initSpotlightSearch() {
                     <button class="spotlight-tab" data-cat="artists" onclick="switchSpotlightTab('artists')">Artists</button>
                     <button class="spotlight-tab" data-cat="albums" onclick="switchSpotlightTab('albums')">Albums</button>
                     <button class="spotlight-tab" data-cat="movies" onclick="switchSpotlightTab('movies')">Movies & Series</button>
+                    <button class="spotlight-tab" data-cat="online" onclick="switchSpotlightTab('online')">🌐 YouTube Online</button>
                 </div>
                 <div class="spotlight-results" id="spotlight-results-list">
                     <div style="padding:24px; text-align:center; color:var(--text-secondary);">Type keywords to search across your lossless music library, lyrics, and cinema</div>
@@ -1886,12 +1963,79 @@ function closeSpotlight() {
     if (modal) modal.classList.remove('active');
 }
 
+async function playOnlineTrack(item) {
+    closeSpotlight();
+    showToast("Resolving stream: " + (item.title || 'Online Track'));
+    try {
+        const idParam = encodeURIComponent(item.id || item.url);
+        const res = await fetch(`/api/stream.php?action=resolve_yt&id=${idParam}`);
+        const data = await res.json();
+        if (data.status === 'success' && data.stream_url) {
+            const trackMeta = {
+                id: 'yt_' + (item.id || Math.random().toString(36).substr(2, 9)),
+                title: data.title || item.title,
+                artist: data.artist || item.uploader || 'YouTube Online',
+                album: 'Online Stream',
+                album_id: 0,
+                art: item.thumbnail || 'assets/img/default-star.svg',
+                duration: data.duration || item.duration || 0,
+                stream_url: data.stream_url
+            };
+            Player.setSingleTrack(trackMeta, data.stream_url);
+            showToast("Playing: " + trackMeta.title);
+        } else {
+            alert("Could not stream online track: " + (data.error || 'Check yt-dlp on host'));
+        }
+    } catch (err) {
+        console.error("Online play error:", err);
+        alert("Streaming error: " + err.message);
+    }
+}
+
 async function executeSpotlightSearch(query) {
     const list = document.getElementById('spotlight-results-list');
     if (!list) return;
     if (!query) {
         list.innerHTML = '<div style="padding:24px; text-align:center; color:var(--text-secondary);">Type keywords to search across your lossless music library, lyrics, and cinema</div>';
         return;
+    }
+
+    // Direct YouTube Online Search
+    if (activeSpotlightCategory === 'online') {
+        list.innerHTML = '<div style="padding:32px; text-align:center; color:var(--text-secondary);"><div class="spinner" style="margin:0 auto 12px auto;"></div>Searching YouTube Online for "' + escapeHtml(query) + '"...</div>';
+        try {
+            const res = await fetch(`/api/stream.php?action=search_yt&query=${encodeURIComponent(query)}`);
+            const data = await res.json();
+            if (data.status === 'success' && data.results && data.results.length > 0) {
+                let html = '<div style="font-size:0.75rem; font-weight:700; color:#fa233b; padding:8px 12px 4px 12px; letter-spacing:0.5px;">YOUTUBE ONLINE RESULTS (' + data.results.length + ')</div>';
+                data.results.forEach(item => {
+                    const cleanTitle = (item.title || 'Untitled').replace(/'/g, "\'");
+                    const cleanUploader = (item.uploader || 'YouTube').replace(/'/g, "\'");
+                    const cleanThumb = (item.thumbnail || '').replace(/'/g, "\'");
+                    html += `
+                        <div class="spotlight-item" onclick="playOnlineTrack({id:'${item.id}', title:'${cleanTitle}', uploader:'${cleanUploader}', thumbnail:'${cleanThumb}', duration:${item.duration || 0}})">
+                            <img src="${item.thumbnail || 'assets/img/default-star.svg'}" style="width:50px; height:38px; border-radius:6px; object-fit:cover;" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-weight:700; color:#fff; font-size:0.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(item.title)}</div>
+                                <div style="color:var(--text-secondary); font-size:0.78rem;">${escapeHtml(item.uploader || 'YouTube')} • Online Stream</div>
+                            </div>
+                            <span style="font-size:0.75rem; color:#888;">${formatDuration(item.duration)}</span>
+                            <button class="btn btn-primary" style="padding:4px 10px; font-size:0.75rem; margin-left:8px;" onclick="event.stopPropagation(); playOnlineTrack({id:'${item.id}', title:'${cleanTitle}', uploader:'${cleanUploader}', thumbnail:'${cleanThumb}', duration:${item.duration || 0}})">
+                                ▶ Play
+                            </button>
+                        </div>
+                    `;
+                });
+                list.innerHTML = html;
+                return;
+            } else {
+                list.innerHTML = '<div style="padding:30px; text-align:center; color:var(--text-secondary);">No YouTube results found for "' + escapeHtml(query) + '"</div>';
+                return;
+            }
+        } catch (e) {
+            list.innerHTML = '<div style="padding:20px; text-align:center; color:#fa233b;">Online search failed: ' + escapeHtml(e.message) + '</div>';
+            return;
+        }
     }
 
     try {
@@ -1980,6 +2124,17 @@ async function executeSpotlightSearch(query) {
                     </div>
                 `;
             });
+        }
+
+        if (activeSpotlightCategory === 'all') {
+            html += `
+                <div style="margin-top:12px; padding:12px; background:rgba(255,255,255,0.03); border-top:1px solid rgba(255,255,255,0.06); border-radius:0 0 12px 12px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:0.8rem; color:var(--text-secondary);">Want to search web & online audio?</span>
+                    <button class="btn btn-secondary" style="font-size:0.75rem; padding:4px 10px;" onclick="switchSpotlightTab('online')">
+                        🌐 Search YouTube Online
+                    </button>
+                </div>
+            `;
         }
 
         if (!html) {

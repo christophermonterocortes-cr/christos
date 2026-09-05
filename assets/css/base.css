@@ -3659,3 +3659,135 @@ body.fullscreen-active #visualizer-container {
     box-shadow: 0 0 0 2px var(--accent-color), 0 8px 24px rgba(250, 35, 59, 0.3);
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   NOFUFAUDIO VISUALIZER DRAWER & NIGHTCORE STUDIO STYLES
+   ═══════════════════════════════════════════════════════════════ */
+
+.viz-settings-drawer {
+    position: fixed;
+    top: 0;
+    right: -360px;
+    bottom: 0;
+    width: 340px;
+    max-width: 85vw;
+    background: rgba(16, 16, 24, 0.95);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: -15px 0 50px rgba(0, 0, 0, 0.7);
+    padding: 24px 20px;
+    box-sizing: border-box;
+    z-index: 10000;
+    transition: right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.viz-settings-drawer.open {
+    right: 0;
+}
+
+.viz-drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 16px;
+}
+
+.viz-style-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.viz-style-pill {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: #ccc;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.viz-style-pill:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.viz-style-pill.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #000;
+    font-weight: 800;
+    box-shadow: 0 4px 14px rgba(250, 35, 59, 0.35);
+}
+
+.viz-qc {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease;
+    outline: none;
+}
+
+.viz-qc:hover {
+    transform: scale(1.15);
+}
+
+.viz-qc.active {
+    border-color: #fff;
+    transform: scale(1.22);
+    box-shadow: 0 0 12px currentColor;
+}
+
+/* DSP Studio Tabs */
+.dsp-tab-btn {
+    background: none;
+    border: none;
+    padding: 8px 14px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.dsp-tab-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.dsp-tab-btn.active {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.nc-live-badge {
+    display: inline-block;
+    background: #a855f7;
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 6px;
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.5);
+}
+
+#nightcore-btn.active,
+#fs-nightcore-btn.active {
+    color: #a855f7 !important;
+    border-color: rgba(168, 85, 247, 0.4);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
+}

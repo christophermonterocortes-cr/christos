@@ -12,6 +12,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+// ------------------------------------------------------------
+// NOFUFAUDIO ONLINE STREAMING: DIRECT YOUTUBE RESOLVER & SEARCH
+// ------------------------------------------------------------
+$action = $_GET['action'] ?? '';
+
+if ($action === 'resolve_yt') {
+    header('Content-Type: application/json; charset=utf-8');
+    $inputUrl = trim($_GET['id'] ?? $_GET['url'] ?? $_GET['video_id'] ?? '');
+    $videoId = '';
+    if (str_contains($inputUrl, 'youtu.be/')) {
+        $parts = explode('youtu.be/', $inputUrl);
+        $videoId = explode('?', explode('#', $parts[1] ?? '')[0])[0];
+    } elseif (str_contains($inputUrl, 'v=')) {
+        parse_str(parse_url($inputUrl, PHP_URL_QUERY) ?? '', $qParams);
+        $videoId = $qParams['v'] ?? '';
+    } elseif (str_contains($inputUrl, 'embed/')) {
+        $parts = explode('embed/', $inputUrl);
+        $videoId = explode('?', explode('#', $parts[1] ?? '')[0])[0];
+    } else {
+        $videoId = trim($inputUrl);
+    }
+
+    if (empty($videoId)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid YouTube video ID or URL']);
+        exit;
+    }
+
+    $ytdlp = file_exists('/usr/local/bin/yt-dlp') ? '/usr/local/bin/yt-dlp' : (file_exists('/usr/bin/yt-dlp') ? '/usr/bin/yt-dlp' : 'yt-dlp');
+    $cmd = escapeshellcmd($ytdlp) . " --no-playlist --no-warnings -f " . escapeshellarg("bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio") . " --print " . escapeshellarg("%(title)s|||%(uploader)s|||%(thumbnail)s|||%(url)s|||%(duration)s") . " " . escapeshellarg("https://www.youtube.com/watch?v={$videoId}");
+    
+    $out = shell_exec($cmd);
+    $lines = array_filter(explode("\n", trim($out ?? '')));
+    $matched = null;
+    foreach ($lines as $line) {
+        if (str_contains($line, '|||')) {
+            $matched = $line;
+            break;
+        }
+    }
+
+    if (!$matched) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Failed to extract YouTube stream URL']);
+        exit;
+    }
+
+    $parts = explode('|||', $matched);
+    $title = trim($parts[0] ?? 'YouTube Audio');
+    $uploader = trim($parts[1] ?? 'YouTube');
+    $thumb = trim($parts[2] ?? '');
+    $streamUrl = trim($parts[3] ?? '');
+    $dur = (int)($parts[4] ?? 0);
+
+    echo json_encode([
+        'status' => 'success',
+        'success' => true,
+        'video_id' => $videoId,
+        'title' => $title,
+        'artist' => $uploader,
+        'album' => 'YouTube Audio Stream',
+        'thumbnail' => $thumb,
+        'stream_url' => $streamUrl,
+        'duration' => $dur
+    ]);
+    exit;
+}
+
+if ($action === 'search_yt') {
+    header('Content-Type: application/json; charset=utf-8');
+    $query = trim($_GET['q'] ?? $_GET['query'] ?? '');
+    if (empty($query)) {
+        echo json_encode(['status' => 'success', 'success' => true, 'results' => []]);
+        exit;
+    }
+
+    $ytdlp = file_exists('/usr/local/bin/yt-dlp') ? '/usr/local/bin/yt-dlp' : (file_exists('/usr/bin/yt-dlp') ? '/usr/bin/yt-dlp' : 'yt-dlp');
+    $cmd = escapeshellcmd($ytdlp) . " --no-playlist --no-warnings --flat-playlist --print " . escapeshellarg("%(id)s|||%(title)s|||%(uploader)s|||%(thumbnail)s|||%(duration)s") . " " . escapeshellarg("ytsearch12:{$query}");
+
+    $out = shell_exec($cmd);
+    $lines = array_filter(explode("\n", trim($out ?? '')));
+    $results = [];
+    foreach ($lines as $line) {
+        $parts = explode('|||', $line);
+        if (count($parts) >= 4) {
+            $results[] = [
+                'id' => trim($parts[0]),
+                'title' => trim($parts[1]),
+                'artist' => trim($parts[2]),
+                'uploader' => trim($parts[2]),
+                'thumbnail' => trim($parts[3]),
+                'duration' => (int)($parts[4] ?? 0)
+            ];
+        }
+    }
+
+    echo json_encode(['status' => 'success', 'success' => true, 'results' => $results]);
+    exit;
+}
+
 $track_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($track_id <= 0) {
     http_response_code(400);

@@ -147,6 +147,120 @@ try {
             echo json_encode(['success' => true]);
             break;
 
+        case 'parse_spotify':
+            $rawInput = json_decode(file_get_contents('php://input'), true) ?: $_GET;
+            $url = trim($rawInput['url'] ?? '');
+            if (empty($url)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'URL is required']);
+                break;
+            }
+
+            // Extract type and ID: playlist, album, track
+            $type = 'playlist';
+            $id = '';
+            if (preg_match('#spotify\.com/(playlist|album|track)/([a-zA-Z0-9]+)#', $url, $m)) {
+                $type = $m[1];
+                $id = $m[2];
+            }
+
+            if (empty($id)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Could not extract Spotify ID from URL']);
+                break;
+            }
+
+            $embedUrl = "https://open.spotify.com/embed/{$type}/{$id}";
+            $opts = [
+                'http' => [
+                    'method' => 'GET',
+                    'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\r\nAccept-Language: en-US,en;q=0.9\r\n",
+                    'timeout' => 12
+                ]
+            ];
+            $context = stream_context_create($opts);
+            $html = @file_get_contents($embedUrl, false, $context);
+
+            if (!$html) {
+                http_response_code(502);
+                echo json_encode(['error' => 'Failed to reach Spotify embed service']);
+                break;
+            }
+
+            $parsedTracks = [];
+            $title = "Spotify " . ucfirst($type);
+            $cover = "";
+
+            if (preg_match('#<script id="__NEXT_DATA__" type="application/json">(.*?)</script>#s', $html, $matches)) {
+                $jsonData = json_decode($matches[1], true);
+                $entity = $jsonData['props']['pageProps']['state']['data']['entity'] ?? [];
+                $title = $entity['name'] ?? $title;
+                $cover = $entity['coverArt']['sources'][0]['url'] ?? '';
+
+                $rawTrackList = $entity['trackList'] ?? [];
+                foreach ($rawTrackList as $t) {
+                    $tTitle = $t['title'] ?? '';
+                    $tArtist = $t['subtitle'] ?? '';
+                    $tDur = (int)(($t['duration'] ?? 0) / 1000);
+                    $preview = $t['audioPreview']['url'] ?? '';
+                    $uri = $t['uri'] ?? '';
+
+                    if (!empty($tTitle)) {
+                        $parsedTracks[] = [
+                            'title' => $tTitle,
+                            'artist' => $tArtist,
+                            'duration' => $tDur,
+                            'preview_url' => $preview,
+                            'spotify_uri' => $uri
+                        ];
+                    }
+                }
+            }
+
+            echo json_encode([
+                'success' => true,
+                'type' => $type,
+                'id' => $id,
+                'title' => $title,
+                'cover' => $cover,
+                'track_count' => count($parsedTracks),
+                'tracks' => $parsedTracks
+            ]);
+            break;
+
+        case 'parse_youtube_playlist':
+            $rawInput = json_decode(file_get_contents('php://input'), true) ?: $_GET;
+            $url = trim($rawInput['url'] ?? '');
+            if (empty($url)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'URL is required']);
+                break;
+            }
+
+            $ytdlp = file_exists('/usr/local/bin/yt-dlp') ? '/usr/local/bin/yt-dlp' : (file_exists('/usr/bin/yt-dlp') ? '/usr/bin/yt-dlp' : 'yt-dlp');
+            $cmd = escapeshellcmd($ytdlp) . " --yes-playlist --no-warnings --flat-playlist --print " . escapeshellarg("%(id)s|||%(title)s|||%(uploader)s|||%(thumbnail)s|||%(duration)s") . " " . escapeshellarg($url);
+            $out = shell_exec($cmd);
+            $lines = array_filter(explode("\n", trim($out ?? '')));
+            $videos = [];
+            foreach ($lines as $line) {
+                $parts = explode('|||', $line);
+                if (count($parts) >= 4) {
+                    $videos[] = [
+                        'id' => trim($parts[0]),
+                        'title' => trim($parts[1]),
+                        'artist' => trim($parts[2]),
+                        'thumbnail' => trim($parts[3]),
+                        'duration' => (int)($parts[4] ?? 0)
+                    ];
+                }
+            }
+            echo json_encode([
+                'success' => true,
+                'track_count' => count($videos),
+                'tracks' => $videos
+            ]);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['error' => 'Unknown action']);
