@@ -276,7 +276,7 @@ function renderCapsulesHtml(tracks) {
                     </div>
                     <img class="capsule-art-img" src="${artUrl}" alt="${escapeHtml(track.title)}" loading="lazy" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
                     ${isFav ? `<div class="capsule-fav-indicator"><svg viewBox="0 0 24 24" width="12" height="12" fill="var(--accent-color)" stroke="var(--accent-color)" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>` : ''}
-                    ${rating > 0 ? `<div class="capsule-rating-badge">★ ${rating}</div>` : ''}
+                    ${rating > 0 ? `<div class="capsule-rating-badge" style="display:flex; align-items:center; gap:2px;"><svg viewBox="0 0 24 24" width="9" height="9" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>${rating}</span></div>` : ''}
                     ${rgGain !== null ? `<div class="capsule-rg-badge">${rgGain >= 0 ? '+' : ''}${rgGain.toFixed(1)}dB</div>` : ''}
                 </div>
                 <div class="capsule-info">
@@ -284,9 +284,11 @@ function renderCapsulesHtml(tracks) {
                     <div class="capsule-artist">${escapeHtml(track.artist)}</div>
                 </div>
                 <div class="capsule-actions" onclick="event.stopPropagation()">
-                    <div class="track-stars-${track.id} capsule-stars">
+                    <div class="track-stars-${track.id} capsule-stars" style="display:flex; align-items:center; gap:2px;">
                         ${[1, 2, 3, 4, 5].map(s => `
-                            <span class="star-icon ${s <= rating ? 'active' : ''}" data-star="${s}" onclick="rateTrack(${track.id}, ${s})" style="color:${s <= rating ? '#f59e0b' : 'rgba(255,255,255,0.2)'}; cursor:pointer; font-size:12px;">★</span>
+                            <span class="star-icon ${s <= rating ? 'active' : ''}" data-star="${s}" onclick="rateTrack(${track.id}, ${s})" style="cursor:pointer; display:inline-flex;">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="${s <= rating ? '#f59e0b' : 'none'}" stroke="${s <= rating ? '#f59e0b' : 'rgba(255,255,255,0.25)'}" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            </span>
                         `).join('')}
                     </div>
                 </div>
@@ -472,14 +474,14 @@ function renderTvShowsHtml() {
     if (!viewContainer) return;
 
     const sortLabels = {
-        'title_asc': 'Title ↑',
-        'title_desc': 'Title ↓',
-        'year_desc': 'Year ↓',
-        'year_asc': 'Year ↑',
-        'episodes_desc': 'Episodes ⤓',
-        'rating_desc': 'Rating ★'
+        'title_asc': 'Title A-Z',
+        'title_desc': 'Title Z-A',
+        'year_desc': 'Year (Newest)',
+        'year_asc': 'Year (Oldest)',
+        'episodes_desc': 'Episodes (Most)',
+        'rating_desc': 'Rating (Highest)'
     };
-    const currentSortLabel = sortLabels[window.currentTvSort] || 'Title ↑';
+    const currentSortLabel = sortLabels[window.currentTvSort] || 'Title A-Z';
 
     let html = `
         <style>
@@ -751,14 +753,14 @@ function renderMoviesHtml() {
     if (!currentMoviesList) return;
 
     const sortLabels = {
-        'title_asc': 'Title ↑',
-        'title_desc': 'Title ↓',
-        'year_desc': 'Year ↓',
-        'year_asc': 'Year ↑',
-        'rating_desc': 'Rating ★',
-        'size_desc': 'Size ⤓'
+        'title_asc': 'Title A-Z',
+        'title_desc': 'Title Z-A',
+        'year_desc': 'Year (Newest)',
+        'year_asc': 'Year (Oldest)',
+        'rating_desc': 'Rating (Highest)',
+        'size_desc': 'Size (Largest)'
     };
-    const currentSortLabel = sortLabels[window.currentMovieSort] || 'Title ↑';
+    const currentSortLabel = sortLabels[window.currentMovieSort] || 'Title A-Z';
 
     let html = `
         <style>
@@ -1033,7 +1035,9 @@ const CinemaPlayer = {
                 <div id="theater-resume-banner" class="theater-resume-banner" style="display:none;">
                     <span>Resumed at <b id="theater-resume-time">00:00</b></span>
                     <button onclick="CinemaPlayer.restartFromBeginning()" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:#fff; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:700; cursor:pointer;">Restart from 0:00</button>
-                    <button onclick="CinemaPlayer.dismissResume()" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:1rem; padding:0 4px;">✕</button>
+                    <button onclick="CinemaPlayer.dismissResume()" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; padding:0 4px; display:inline-flex; align-items:center;">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
                 </div>
 
                 <!-- Next Episode Countdown Banner (For TV Series) -->
@@ -1044,7 +1048,9 @@ const CinemaPlayer = {
                         <div style="font-size:0.8rem; color:#22c55e; font-weight:600; margin-top:2px;">Playing in <span id="theater-next-countdown">10</span>s</div>
                     </div>
                     <button onclick="CinemaPlayer.playNextEpisodeNow()" class="theater-exit-btn" style="background:#fa233b !important; border:none !important; padding:6px 14px !important; font-size:0.82rem !important;">Play Now</button>
-                    <button onclick="CinemaPlayer.cancelNextEpisode()" style="background:transparent !important; border:none !important; color:#888 !important; cursor:pointer !important; font-size:1.1rem !important; padding:4px !important;">✕</button>
+                    <button onclick="CinemaPlayer.cancelNextEpisode()" style="background:transparent !important; border:none !important; color:#888 !important; cursor:pointer !important; padding:4px !important; display:inline-flex; align-items:center;">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
                 </div>
 
                 <!-- Top Cinema Bar -->
@@ -1737,8 +1743,9 @@ async function renderDownloaderView() {
 
                 <div class="downloader-input-group">
                     <input type="url" id="downloader-url-input" class="downloader-input" placeholder="Paste Qobuz, Tidal, Amazon, Apple, Spotify, or YouTube playlist link..." autocomplete="off">
-                    <button class="btn btn-secondary" onclick="parsePlaylistPreview()" style="margin-right:6px;" title="Inspect & Preview tracks">
-                        🔍 Preview Playlist
+                    <button class="btn btn-secondary" onclick="parsePlaylistPreview()" style="margin-right:6px; display:inline-flex; align-items:center; gap:6px;" title="Inspect & Preview tracks">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <span>Preview Playlist</span>
                     </button>
                     <button class="btn btn-primary downloader-submit-btn" onclick="startUniversalDownload()">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1912,7 +1919,10 @@ function initSpotlightSearch() {
                     <button class="spotlight-tab" data-cat="artists" onclick="switchSpotlightTab('artists')">Artists</button>
                     <button class="spotlight-tab" data-cat="albums" onclick="switchSpotlightTab('albums')">Albums</button>
                     <button class="spotlight-tab" data-cat="movies" onclick="switchSpotlightTab('movies')">Movies & Series</button>
-                    <button class="spotlight-tab" data-cat="online" onclick="switchSpotlightTab('online')">🌐 YouTube Online</button>
+                    <button class="spotlight-tab" data-cat="online" onclick="switchSpotlightTab('online')" style="display:inline-flex; align-items:center; gap:5px;">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                        <span>YouTube Online</span>
+                    </button>
                 </div>
                 <div class="spotlight-results" id="spotlight-results-list">
                     <div style="padding:24px; text-align:center; color:var(--text-secondary);">Type keywords to search across your lossless music library, lyrics, and cinema</div>
@@ -2084,7 +2094,9 @@ async function executeSpotlightSearch(query) {
             data.artists.slice(0, 4).forEach(ar => {
                 html += `
                     <div class="spotlight-item" onclick="closeSpotlight(); loadView('artists')">
-                        <div style="width:38px; height:38px; border-radius:50%; background:#2a2a36; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold;">♪</div>
+                        <div style="width:38px; height:38px; border-radius:50%; background:#2a2a36; display:flex; align-items:center; justify-content:center; color:#fff;">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        </div>
                         <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(ar.name)}</div>
                     </div>
                 `;
@@ -2114,7 +2126,9 @@ async function executeSpotlightSearch(query) {
             data.movies.slice(0, 4).forEach(m => {
                 html += `
                     <div class="spotlight-item" onclick="closeSpotlight(); openTheaterModalWithVideo('${escapeHtml(m.title)}', '${m.quality || '4K'}', '${m.stream_url || ''}', ${JSON.stringify(m.subtitles || [])})">
-                        <div style="width:38px; height:38px; border-radius:6px; background:#1e272e; display:flex; align-items:center; justify-content:center; color:#fff;">🎬</div>
+                        <div style="width:38px; height:38px; border-radius:6px; background:#1e272e; display:flex; align-items:center; justify-content:center; color:#fff;">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
+                        </div>
                         <div style="flex:1; min-width:0;">
                             <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(m.title)}</div>
                             <div style="color:var(--text-secondary); font-size:0.78rem;">Cinema 4K Atmos</div>
@@ -2128,8 +2142,9 @@ async function executeSpotlightSearch(query) {
             html += `
                 <div style="margin-top:12px; padding:12px; background:rgba(255,255,255,0.03); border-top:1px solid rgba(255,255,255,0.06); border-radius:0 0 12px 12px; display:flex; justify-content:space-between; align-items:center;">
                     <span style="font-size:0.8rem; color:var(--text-secondary);">Want to search web & online audio?</span>
-                    <button class="btn btn-secondary" style="font-size:0.75rem; padding:4px 10px;" onclick="switchSpotlightTab('online')">
-                        🌐 Search YouTube Online
+                    <button class="btn btn-secondary" style="font-size:0.75rem; padding:4px 10px; display:inline-flex; align-items:center; gap:5px;" onclick="switchSpotlightTab('online')">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                        <span>Search YouTube Online</span>
                     </button>
                 </div>
             `;
@@ -3206,7 +3221,9 @@ async function batchAddToPlaylist() {
             <div class="spotlight-card" style="max-width:440px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border-color);">
                     <h3 style="font-size:1.1rem; color:#fff; font-weight:700;">Add ${list.length} Tracks to Playlist</h3>
-                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('playlist-picker-modal').classList.remove('active')">✕</button>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('playlist-picker-modal').classList.remove('active')">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
                 </div>
                 <div style="padding:16px 20px; max-height:300px; overflow-y:auto;">
                     <div style="margin-bottom:14px;">
@@ -3324,7 +3341,7 @@ async function renderMostPlayedView(range = '30days') {
                 <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;">
                     <div>
                         <div style="display:flex; align-items:center; gap:8px;">
-                            <span style="font-size:1.4rem;">🔥</span>
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="var(--accent-color)"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
                             <h2 style="margin:0;">Most Played Leaderboard</h2>
                         </div>
                         <p style="color:var(--text-secondary); margin-top:4px;">
@@ -3375,9 +3392,9 @@ async function renderMostPlayedView(range = '30days') {
                 const isFav = !!(t.is_favorite == 1 || t.is_favorite === true);
                 
                 let rankBadge = `<span class="rank-num">${rank}</span>`;
-                if (rank === 1) rankBadge = `<span class="rank-num rank-gold">🥇 1</span>`;
-                else if (rank === 2) rankBadge = `<span class="rank-num rank-silver">🥈 2</span>`;
-                else if (rank === 3) rankBadge = `<span class="rank-num rank-bronze">🥉 3</span>`;
+                if (rank === 1) rankBadge = `<span class="rank-num rank-gold"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:middle; margin-right:3px;"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 4h16v5a8 8 0 0 1-16 0V4z"/><path d="M12 17v4m-4 0h8"/></svg>1</span>`;
+                else if (rank === 2) rankBadge = `<span class="rank-num rank-silver"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:middle; margin-right:3px;"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 4h16v5a8 8 0 0 1-16 0V4z"/><path d="M12 17v4m-4 0h8"/></svg>2</span>`;
+                else if (rank === 3) rankBadge = `<span class="rank-num rank-bronze"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:middle; margin-right:3px;"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 4h16v5a8 8 0 0 1-16 0V4z"/><path d="M12 17v4m-4 0h8"/></svg>3</span>`;
 
                 html += `
                     <div class="leaderboard-row ${isSelected ? 'selected' : ''}" onclick="Player.setQueue(currentTrackList, ${idx})">
@@ -3393,7 +3410,10 @@ async function renderMostPlayedView(range = '30days') {
                             <div class="lb-subtitle">${escapeHtml(t.artist)} • ${escapeHtml(t.album)}</div>
                         </div>
                         <div class="lb-col-badge">
-                            <span class="play-count-badge">🔥 ${t.play_count || 1} ${t.play_count === 1 ? 'play' : 'plays'}</span>
+                            <span class="play-count-badge" style="display:inline-flex; align-items:center; gap:5px;">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                                <span>${t.play_count || 1} ${t.play_count === 1 ? 'play' : 'plays'}</span>
+                            </span>
                         </div>
                         <div class="lb-col-duration">${formatDuration(t.duration)}</div>
                         <div class="lb-col-actions" onclick="event.stopPropagation()">
@@ -3440,7 +3460,7 @@ async function renderLostMemoriesView() {
                 <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;">
                     <div>
                         <div style="display:flex; align-items:center; gap:8px;">
-                            <span style="font-size:1.4rem;">⏳</span>
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
                             <h2 style="margin:0;">Lost Memories • ${currentMonthName} Flashbacks</h2>
                         </div>
                         <p style="color:var(--text-secondary); margin-top:4px;">
@@ -3489,7 +3509,10 @@ async function renderLostMemoriesView() {
                             <div class="lb-subtitle">${escapeHtml(t.artist)} • ${escapeHtml(t.album)}</div>
                         </div>
                         <div class="lb-col-badge">
-                            <span class="memory-tag" style="background:rgba(162,155,254,0.15); color:#a29bfe; font-size:0.75rem; padding:3px 8px; border-radius:6px;">🕒 ${playedAt}</span>
+                            <span class="memory-tag" style="background:rgba(162,155,254,0.15); color:#a29bfe; font-size:0.75rem; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                                <span>${playedAt}</span>
+                            </span>
                         </div>
                         <div class="lb-col-duration">${formatDuration(t.duration)}</div>
                         <div class="lb-col-actions" onclick="event.stopPropagation()">
@@ -3547,7 +3570,9 @@ async function openSmartRadioModal(seedTrackId = null) {
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
                     <h3 style="font-size:1.15rem; color:#fff; font-weight:700; margin:0;">Smart Radio & Endless Mix</h3>
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('smart-radio-modal').classList.remove('active')">✕</button>
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('smart-radio-modal').classList.remove('active')">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
             </div>
             
             <div style="padding:20px;">
@@ -3659,7 +3684,10 @@ function openSleepTimerModal() {
             statusHtml = `
                 <div style="background:rgba(250,35,59,0.12); border:1px solid rgba(250,35,59,0.3); border-radius:8px; padding:12px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <div style="color:var(--accent-color); font-weight:700; font-size:0.92rem;">⏱ Sleep Timer Active</div>
+                        <div style="color:var(--accent-color); font-weight:700; font-size:0.92rem; display:flex; align-items:center; gap:6px;">
+                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <span>Sleep Timer Active</span>
+                        </div>
                         <div style="color:#fff; font-size:1.15rem; font-weight:800; margin-top:2px;">${m}:${s < 10 ? '0' : ''}${s} remaining</div>
                     </div>
                     <button class="btn btn-secondary btn-sm" onclick="Player.cancelSleepTimer(); openSleepTimerModal(); showToast('Sleep timer canceled');">
@@ -3671,7 +3699,10 @@ function openSleepTimerModal() {
             statusHtml = `
                 <div style="background:rgba(250,35,59,0.12); border:1px solid rgba(250,35,59,0.3); border-radius:8px; padding:12px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <div style="color:var(--accent-color); font-weight:700; font-size:0.92rem;">⏱ Sleep Timer Active</div>
+                        <div style="color:var(--accent-color); font-weight:700; font-size:0.92rem; display:flex; align-items:center; gap:6px;">
+                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <span>Sleep Timer Active</span>
+                        </div>
                         <div style="color:#fff; font-size:1.15rem; font-weight:800; margin-top:2px;">${Player.sleepTimerTracksRemaining} tracks remaining</div>
                     </div>
                     <button class="btn btn-secondary btn-sm" onclick="Player.cancelSleepTimer(); openSleepTimerModal(); showToast('Sleep timer canceled');">
@@ -3689,7 +3720,9 @@ function openSleepTimerModal() {
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     <h3 style="font-size:1.15rem; color:#fff; font-weight:700; margin:0;">Sleep Timer & Gentle Fade</h3>
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sleep-timer-modal').classList.remove('active')">✕</button>
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sleep-timer-modal').classList.remove('active')">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
             </div>
 
             <div style="padding:20px;">
@@ -3718,8 +3751,9 @@ function openSleepTimerModal() {
                     <button class="btn btn-secondary" onclick="selectSleepTimer('tracks', 10)">10 Tracks</button>
                 </div>
 
-                <div style="font-size:0.78rem; color:var(--text-secondary); line-height:1.4; border-top:1px solid var(--border-color); padding-top:12px;">
-                    ✨ <strong>Gentle Fadeout:</strong> Music volume gracefully ramps down over the final 5 seconds before pausing, ensuring you fall asleep smoothly without abrupt silence.
+                <div style="font-size:0.78rem; color:var(--text-secondary); line-height:1.4; border-top:1px solid var(--border-color); padding-top:12px; display:flex; align-items:flex-start; gap:8px;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--accent-color)" style="flex-shrink:0; margin-top:2px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    <div><strong>Gentle Fadeout:</strong> Music volume gracefully ramps down over the final 5 seconds before pausing, ensuring you fall asleep smoothly without abrupt silence.</div>
                 </div>
             </div>
         </div>
@@ -3784,7 +3818,7 @@ function openImportM3uModal() {
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent-color)" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     <h3 style="font-size:1.15rem; color:#fff; font-weight:700; margin:0;">Import M3U / M3U8 Playlist</h3>
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-m3u-modal').classList.remove('active')">✕</button>
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-m3u-modal').classList.remove('active')" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
             </div>
 
             <div style="padding:20px;">

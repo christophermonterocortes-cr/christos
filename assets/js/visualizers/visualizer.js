@@ -85,10 +85,14 @@ const Visualizer = {
 
         const is3D = (this.currentViz === 4 || this.currentViz === 5);
 
+        const container = document.getElementById('visualizer-container');
         if (this.currentViz === 0) {
             if (this.canvas2d) this.canvas2d.style.display = 'none';
             if (this.canvas3d) this.canvas3d.style.display = 'none';
+            if (container) container.classList.remove('viz-active');
             return;
+        } else {
+            if (container) container.classList.add('viz-active');
         }
 
         if (is3D) {
@@ -203,20 +207,28 @@ const Visualizer = {
     // NOFUFAUDIO VISUALIZER SUITE (BARS, MIRROR, WAVE, DOTS, CIRCLE)
     // ═══════════════════════════════════════════════════════════════
 
+    clearCanvasWithBackground(ctx, W, H) {
+        ctx.clearRect(0, 0, W, H);
+        const grad = ctx.createRadialGradient(W / 2, H * 0.55, 20, W / 2, H * 0.55, Math.max(W, H) * 0.75);
+        grad.addColorStop(0, '#131526');
+        grad.addColorStop(1, '#07080f');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+    },
+
     applyTopFadeout(ctx, W, H) {
         ctx.shadowBlur = 0;
         const fadeH = Math.round(H * 0.35);
         const fade = ctx.createLinearGradient(0, 0, 0, fadeH);
-        fade.addColorStop(0, 'rgba(0, 0, 0, 1)');
-        fade.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.globalCompositeOperation = 'destination-out';
+        fade.addColorStop(0, '#07080f');
+        fade.addColorStop(0.65, 'rgba(7, 8, 15, 0.65)');
+        fade.addColorStop(1, 'rgba(7, 8, 15, 0)');
         ctx.fillStyle = fade;
         ctx.fillRect(0, 0, W, fadeH);
-        ctx.globalCompositeOperation = 'source-over';
     },
 
     drawNofufBars(ctx, W, H, freqData) {
-        ctx.clearRect(0, 0, W, H);
+        this.clearCanvasWithBackground(ctx, W, H);
         const color = this.getResolvedColor();
         const sens = this.vizSensitivity;
 
@@ -242,7 +254,7 @@ const Visualizer = {
     },
 
     drawNofufMirror(ctx, W, H, freqData) {
-        ctx.clearRect(0, 0, W, H);
+        this.clearCanvasWithBackground(ctx, W, H);
         const color = this.getResolvedColor();
         const sens = this.vizSensitivity;
 
@@ -268,7 +280,7 @@ const Visualizer = {
     },
 
     drawNofufWave(ctx, W, H, freqData) {
-        ctx.clearRect(0, 0, W, H);
+        this.clearCanvasWithBackground(ctx, W, H);
         const color = this.getResolvedColor();
         const sens = this.vizSensitivity;
 
@@ -307,7 +319,7 @@ const Visualizer = {
     },
 
     drawNofufDots(ctx, W, H, freqData) {
-        ctx.clearRect(0, 0, W, H);
+        this.clearCanvasWithBackground(ctx, W, H);
         const color = this.getResolvedColor();
         const sens = this.vizSensitivity;
 
@@ -335,7 +347,7 @@ const Visualizer = {
     },
 
     drawNofufCircle(ctx, W, H, freqData) {
-        ctx.clearRect(0, 0, W, H);
+        this.clearCanvasWithBackground(ctx, W, H);
         const color = this.getResolvedColor();
         const sens = this.vizSensitivity;
 
@@ -455,6 +467,15 @@ const Visualizer = {
             sel.value = this.currentViz;
         });
 
+        // Sync pills in settings drawer
+        document.querySelectorAll('.viz-style-pill').forEach(btn => {
+            const oc = btn.getAttribute('onclick') || '';
+            const match = oc.match(/change\((\d+)\)/);
+            if (match) {
+                btn.classList.toggle('active', parseInt(match[1], 10) === this.currentViz);
+            }
+        });
+
         if (typeof Player !== 'undefined' && Player.analyser) {
             this.start(Player.analyser);
         }
@@ -469,12 +490,57 @@ const Visualizer = {
     // VISUALIZER TUNING DRAWER ENGINE
     // ═══════════════════════════════════════════════════════════════
 
+    setupDrawerEvents() {
+        if (this._drawerEventsBound) return;
+        this._drawerEventsBound = true;
+        document.addEventListener('pointerdown', (e) => {
+            const drawer = document.getElementById('viz-settings-drawer');
+            if (drawer && drawer.classList.contains('open')) {
+                if (!drawer.contains(e.target) && !e.target.closest('[onclick*="toggleSettingsDrawer"]')) {
+                    this.closeSettingsDrawer();
+                }
+            }
+        });
+    },
+
+    updateDrawerState() {
+        const drawer = document.getElementById('viz-settings-drawer');
+        if (!drawer) return;
+
+        drawer.querySelectorAll('.viz-style-pill').forEach(btn => {
+            const oc = btn.getAttribute('onclick') || '';
+            const match = oc.match(/change\((\d+)\)/);
+            if (match) {
+                btn.classList.toggle('active', parseInt(match[1], 10) === this.currentViz);
+            }
+        });
+
+        const sensInp = drawer.querySelector('input[type="range"][oninput*="setSensitivity"]');
+        if (sensInp) sensInp.value = this.vizSensitivity;
+        const sensLbl = document.getElementById('viz-sd-sens-val');
+        if (sensLbl) sensLbl.textContent = this.vizSensitivity.toFixed(1) + '×';
+
+        const opInp = drawer.querySelector('input[type="range"][oninput*="setOpacity"]');
+        if (opInp) opInp.value = this.vizOpacity;
+        const opLbl = document.getElementById('viz-sd-op-val');
+        if (opLbl) opLbl.textContent = this.vizOpacity + '%';
+
+        const glowInp = drawer.querySelector('input[type="checkbox"][onchange*="setShadow"]');
+        if (glowInp) glowInp.checked = !!this.vizShadow;
+
+        drawer.querySelectorAll('.viz-qc').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.vc === this.vizColor);
+        });
+    },
+
     toggleSettingsDrawer() {
         let drawer = document.getElementById('viz-settings-drawer');
         if (!drawer) {
             this.createSettingsDrawer();
             drawer = document.getElementById('viz-settings-drawer');
         }
+        this.setupDrawerEvents();
+        this.updateDrawerState();
         drawer.classList.toggle('open');
     },
 
@@ -484,6 +550,8 @@ const Visualizer = {
             this.createSettingsDrawer();
             drawer = document.getElementById('viz-settings-drawer');
         }
+        this.setupDrawerEvents();
+        this.updateDrawerState();
         drawer.classList.add('open');
     },
 

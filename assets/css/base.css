@@ -271,9 +271,10 @@ body {
     width: 44px;
     height: 44px;
     min-width: 44px;
+    max-width: 44px;
     border-radius: 6px;
     overflow: hidden;
-    background: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -283,6 +284,8 @@ body {
 .capsule-art-img {
     width: 100%;
     height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: cover;
     display: block;
 }
@@ -1154,11 +1157,13 @@ input[type="range"]:hover::-webkit-slider-thumb {
     pointer-events: none !important;
 }
 
-/* In Fullscreen mode, raise visualizer canvas behind fullscreen UI cards but above main app */
+/* In Fullscreen mode or active visualizer, raise visualizer canvas with solid dark background to prevent library bleed-through */
 body:has(#fullscreen-view.active) #visualizer-container,
-body.fullscreen-active #visualizer-container {
+body.fullscreen-active #visualizer-container,
+#visualizer-container.viz-active {
     z-index: 99990 !important;
     opacity: 1 !important;
+    background: radial-gradient(ellipse at 50% 60%, #121422 0%, #080911 100%) !important;
     pointer-events: none !important;
 }
 
@@ -2000,7 +2005,10 @@ body.fullscreen-active #visualizer-container {
     position: fixed;
     inset: 0;
     z-index: 99999;
-    background: rgba(6, 7, 12, 0.45);
+    background: #080911;
+    background: radial-gradient(ellipse at 50% 50%, rgba(18, 20, 34, 0.96) 0%, rgba(8, 9, 17, 0.98) 100%);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
     display: none;
     flex-direction: column;
     padding: 20px 48px 24px 48px;
@@ -2497,6 +2505,8 @@ body.fullscreen-active #visualizer-container {
         height: auto !important;
         min-height: 250px;
     }
+}
+
 /* ============================================================
    5-STAR RATINGS, REPLAYGAIN BADGES & ARTIST HERO STYLES
    ============================================================ */
@@ -3492,13 +3502,22 @@ body.fullscreen-active #visualizer-container {
 .lb-col-art {
     width: 44px;
     height: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .lb-art-img {
     width: 100%;
     height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     border-radius: 6px;
     object-fit: cover;
+    display: block;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
 }
 
@@ -3634,19 +3653,20 @@ body.fullscreen-active #visualizer-container {
 /* Capsule Card Multi-Selection Indicator */
 .capsule-select-indicator {
     position: absolute;
-    top: 6px;
-    left: 6px;
+    top: 3px;
+    left: 3px;
     z-index: 10;
-    background: rgba(0, 0, 0, 0.65);
+    background: rgba(10, 11, 18, 0.85);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 2px;
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
     transition: opacity 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 .capsule-card:hover .capsule-select-indicator,
@@ -3678,7 +3698,7 @@ body.fullscreen-active #visualizer-container {
     box-shadow: -15px 0 50px rgba(0, 0, 0, 0.7);
     padding: 24px 20px;
     box-sizing: border-box;
-    z-index: 10000;
+    z-index: 1000005;
     transition: right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex;
     flex-direction: column;
@@ -3791,3 +3811,82 @@ body.fullscreen-active #visualizer-container {
     border-color: rgba(168, 85, 247, 0.4);
     box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   LYRICS MODE SELECTOR & PLAIN LYRICS STYLING
+   ═══════════════════════════════════════════════════════════════ */
+.lyric-mode-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    margin-bottom: 14px;
+}
+
+.lyric-mode-toggles {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lyric-mode-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.15s ease;
+}
+
+.lyric-mode-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.lyric-mode-btn.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #fff;
+    font-weight: 700;
+}
+
+.plain-lyrics-body {
+    white-space: pre-wrap;
+    line-height: 2;
+    font-size: 1.05rem;
+    color: rgba(255, 255, 255, 0.9);
+    padding: 10px 4px;
+    font-family: inherit;
+    text-align: center;
+}
+
+.fs-plain-lyrics-body {
+    white-space: pre-wrap;
+    line-height: 2.2;
+    font-size: 1.25rem;
+    color: rgba(255, 255, 255, 0.95);
+    padding: 20px 8px;
+    font-family: inherit;
+    text-align: left;
+}
+
+/* Universal Image Bounds Safeguard */
+.leaderboard-row img,
+.capsule-card img,
+.track-item img,
+.queue-item img,
+.cinema-movie-card img {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: cover !important;
+}
+

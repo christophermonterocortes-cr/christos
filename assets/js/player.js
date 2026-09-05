@@ -164,7 +164,10 @@ const Player = {
     hasRecordedListen: false,
 
     lyrics: [],
+    rawLrcText: '',
     currentLyricIndex: -1,
+    lyricMode: localStorage.getItem('christos_lyric_mode') || 'synced', // 'synced' or 'plain'
+    romanizeLyrics: localStorage.getItem('christos_romanize_lyrics') !== 'false',
 
     isFullscreen: false,
     fullscreenLayout: 'split', // 'split', 'ambient', 'lyrics', 'visualizer'
@@ -200,6 +203,9 @@ const Player = {
 
         // Restore saved session if available
         this.restoreSavedSession();
+
+        // Initialize lyric mode UI
+        this.updateLyricModeUI();
     },
 
     restoreSavedSession() {
@@ -763,6 +769,7 @@ const Player = {
     },
 
     syncLyrics(currentTime) {
+        if (this.lyricMode === 'plain') return;
         if (!this.lyrics || this.lyrics.length === 0) return;
 
         let activeIdx = -1;
@@ -811,8 +818,32 @@ const Player = {
         }
     },
 
+    setLyricMode(mode) {
+        this.lyricMode = mode;
+        localStorage.setItem('christos_lyric_mode', mode);
+        this.updateLyricModeUI();
+        this.renderLyrics();
+    },
+
+    toggleRomaji() {
+        this.romanizeLyrics = !this.romanizeLyrics;
+        localStorage.setItem('christos_romanize_lyrics', this.romanizeLyrics ? 'true' : 'false');
+        this.updateLyricModeUI();
+        this.renderLyrics();
+    },
+
+    updateLyricModeUI() {
+        document.querySelectorAll('.lyric-mode-btn[data-mode]').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-mode') === this.lyricMode);
+        });
+        document.querySelectorAll('#lyric-romaji-toggle-btn, #fs-lyric-romaji-toggle-btn').forEach(btn => {
+            btn.classList.toggle('active', !!this.romanizeLyrics);
+        });
+    },
+
     async fetchLyrics(trackId) {
         this.lyrics = [];
+        this.rawLrcText = '';
         this.currentLyricIndex = -1;
 
         const drawerContent = document.querySelector('#lyrics-overlay .lyrics-content');
@@ -846,10 +877,34 @@ const Player = {
     },
 
     parseLrc(lrcText) {
-        const lines = lrcText.split(/\r?\n/);
+        this.rawLrcText = lrcText || '';
+        this.renderLyrics();
+    },
+
+    renderLyrics() {
+        const drawerContent = document.querySelector('#lyrics-overlay .lyrics-content');
+        const fsContent = document.getElementById('fullscreen-lyrics-scroll');
+
+        if (!this.rawLrcText || !this.rawLrcText.trim()) {
+            const noLrcHtml = `
+                <div style="text-align:center; padding:30px 10px;">
+                    <div style="font-size:1.1rem; color:var(--text-secondary); margin-bottom:12px;">No lyrics available</div>
+                    ${this.currentTrack ? `
+                    <button id="search-lyrics-online-btn" class="btn btn-secondary" style="font-size:0.85rem; padding:8px 16px;" onclick="window.fetchOnlineLyrics(${this.currentTrack.id})">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:6px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <span>Search Online Lyrics (LRCLIB)</span>
+                    </button>` : ''}
+                </div>
+            `;
+            if (drawerContent) drawerContent.innerHTML = noLrcHtml;
+            if (fsContent) fsContent.innerHTML = noLrcHtml;
+            return;
+        }
+
+        const rawLines = this.rawLrcText.split(/\r?\n/);
         this.lyrics = [];
 
-        lines.forEach(line => {
+        rawLines.forEach(line => {
             const match = line.match(/\[(\d+):(\d+(?:\.\d+)?)\](.*)/);
             if (match) {
                 const mins = parseInt(match[1]);
@@ -861,22 +916,39 @@ const Player = {
             }
         });
 
-        const drawerContent = document.querySelector('#lyrics-overlay .lyrics-content');
-        const fsContent = document.getElementById('fullscreen-lyrics-scroll');
+        this.updateLyricModeUI();
 
-        if (this.lyrics.length === 0) {
-            if (drawerContent) drawerContent.innerHTML = '<div class="lrc-line">Lyrics formatted as plain text</div>';
-            if (fsContent) fsContent.innerHTML = '<div class="fs-lrc-line active">' + escapeHtml(lrcText) + '</div>';
+        // If Plain Mode or no timestamped lyrics found in text
+        if (this.lyricMode === 'plain' || this.lyrics.length === 0) {
+            let plainHtml = '';
+            rawLines.forEach(line => {
+                const cleaned = line.replace(/\[\d+:\d+(?:\.\d+)?\]/g, '').trim();
+                if (!cleaned) {
+                    plainHtml += '<div style="height:14px;"></div>';
+                    return;
+                }
+                let romajiHtml = '';
+                if (this.romanizeLyrics && typeof SonoraRomanizer !== 'undefined') {
+                    const rom = SonoraRomanizer.romanize(cleaned);
+                    if (rom) {
+                        romajiHtml = `<div class="lyric-line-romanized" style="font-size:0.85rem; color:var(--accent-color); margin-top:2px;">${escapeHtml(rom)}</div>`;
+                    }
+                }
+                plainHtml += `<div style="margin-bottom:12px;"><span>${escapeHtml(cleaned)}</span>${romajiHtml}</div>`;
+            });
+
+            if (drawerContent) drawerContent.innerHTML = `<div class="plain-lyrics-body">${plainHtml}</div>`;
+            if (fsContent) fsContent.innerHTML = `<div class="fs-plain-lyrics-body">${plainHtml}</div>`;
             return;
         }
 
-        const romanizeEnabled = localStorage.getItem('christos_romanize_lyrics') !== 'false';
+        // Synced Mode
         let drawerHtml = '';
         let fsHtml = '';
 
         this.lyrics.forEach((l, idx) => {
             let romajiHtml = '';
-            if (romanizeEnabled && typeof SonoraRomanizer !== 'undefined') {
+            if (this.romanizeLyrics && typeof SonoraRomanizer !== 'undefined') {
                 const rom = SonoraRomanizer.romanize(l.text);
                 if (rom) {
                     romajiHtml = `<span class="lyric-line-romanized">${escapeHtml(rom)}</span>`;
@@ -889,6 +961,11 @@ const Player = {
 
         if (drawerContent) drawerContent.innerHTML = drawerHtml;
         if (fsContent) fsContent.innerHTML = fsHtml;
+
+        this.currentLyricIndex = -1;
+        if (this.activeAudio) {
+            this.syncLyrics(this.activeAudio.currentTime);
+        }
     },
 
     seekToTime(seconds) {
@@ -1320,6 +1397,8 @@ window.toggleLyrics = () => {
         overlay.classList.toggle('open');
     }
 };
+window.setLyricMode = (mode) => Player.setLyricMode(mode);
+window.toggleRomaji = () => Player.toggleRomaji();
 
 /* ============================================================
    ONLINE LYRICS SEARCH (LRCLIB.NET)

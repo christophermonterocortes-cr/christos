@@ -470,12 +470,12 @@ const DSP = {
         // Custom presets options
         let customOptionsHtml = '';
         Object.keys(this.customPresets).forEach(k => {
-            customOptionsHtml += `<option value="${k}" ${currentPreset === k ? 'selected' : ''}>★ ${k}</option>`;
+            customOptionsHtml += `<option value="${k}" ${currentPreset === k ? 'selected' : ''}>${k} (Custom)</option>`;
         });
 
         modal.innerHTML = `
-            <div class="dsp-modal-card">
-                <div class="dsp-header">
+            <div class="dsp-modal-card" onclick="event.stopPropagation()">
+                <div class="dsp-modal-header">
                     <div style="display:flex; align-items:center; gap:10px;">
                         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                         <h3 style="font-size:1.2rem; font-weight:800; color:#fff;">Audiophile DSP & Effects Studio</h3>
@@ -487,14 +487,17 @@ const DSP = {
 
                 <!-- DSP NAVIGATION TABS -->
                 <div class="dsp-nav-tabs" style="display:flex; gap:8px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:10px; margin-bottom:16px;">
-                    <button class="dsp-tab-btn ${this.activeTab==='eq'?'active':''}" data-tab="eq" onclick="DSP.switchTab('eq')">
-                        🎚️ 10-Band Equalizer
+                    <button class="dsp-tab-btn ${this.activeTab==='eq'?'active':''}" data-tab="eq" onclick="DSP.switchTab('eq')" style="display:flex; align-items:center; gap:7px;">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                        <span>10-Band Equalizer</span>
                     </button>
-                    <button class="dsp-tab-btn ${this.activeTab==='nightcore'?'active':''}" data-tab="nightcore" onclick="DSP.switchTab('nightcore')">
-                        ⚡ Nightcore & Speed Studio
+                    <button class="dsp-tab-btn ${this.activeTab==='nightcore'?'active':''}" data-tab="nightcore" onclick="DSP.switchTab('nightcore')" style="display:flex; align-items:center; gap:7px;">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        <span>Nightcore & Speed Studio</span>
                     </button>
-                    <button class="dsp-tab-btn ${this.activeTab==='loudness'?'active':''}" data-tab="loudness" onclick="DSP.switchTab('loudness')">
-                        🔊 ReplayGain & Normalizer
+                    <button class="dsp-tab-btn ${this.activeTab==='loudness'?'active':''}" data-tab="loudness" onclick="DSP.switchTab('loudness')" style="display:flex; align-items:center; gap:7px;">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                        <span>ReplayGain & Normalizer</span>
                     </button>
                 </div>
 
@@ -518,8 +521,9 @@ const DSP = {
                         </div>
 
                         <div style="display:flex; gap:8px;">
-                            <button class="btn btn-secondary" onclick="DSP.promptSavePreset()" style="padding:6px 12px; font-size:0.82rem;">
-                                💾 Save Custom
+                            <button class="btn btn-secondary" onclick="DSP.promptSavePreset()" style="padding:6px 12px; font-size:0.82rem; display:inline-flex; align-items:center; gap:6px;">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                <span>Save Custom</span>
                             </button>
                             <button class="btn btn-secondary" onclick="DSP.applyPreset('flat')" style="padding:6px 12px; font-size:0.82rem;">
                                 Reset Flat
@@ -549,17 +553,21 @@ const DSP = {
 
                         <!-- Presets Quick Bar -->
                         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
-                            <button class="btn btn-secondary" style="font-size:0.8rem; padding:6px 12px;" onclick="DSP.applyNightcorePreset('nightcore')">
-                                ⚡ Nightcore (1.30× / +4 st)
+                            <button class="btn btn-secondary" style="font-size:0.8rem; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;" onclick="DSP.applyNightcorePreset('nightcore')">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                <span>Nightcore (1.30× / +4 st)</span>
                             </button>
-                            <button class="btn btn-secondary" style="font-size:0.8rem; padding:6px 12px;" onclick="DSP.applyNightcorePreset('slowed')">
-                                🌌 Slowed & Reverb (0.80× / -3 st)
+                            <button class="btn btn-secondary" style="font-size:0.8rem; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;" onclick="DSP.applyNightcorePreset('slowed')">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                <span>Slowed & Reverb (0.80× / -3 st)</span>
                             </button>
-                            <button class="btn btn-secondary" style="font-size:0.8rem; padding:6px 12px;" onclick="DSP.applyNightcorePreset('vaporwave')">
-                                📼 Vaporwave (0.72× / -5 st)
+                            <button class="btn btn-secondary" style="font-size:0.8rem; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;" onclick="DSP.applyNightcorePreset('vaporwave')">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><path d="M8 12h8"/></svg>
+                                <span>Vaporwave (0.72× / -5 st)</span>
                             </button>
-                            <button class="btn btn-secondary" style="font-size:0.8rem; padding:6px 12px;" onclick="DSP.applyNightcorePreset('speed')">
-                                🚀 Speed Up (1.50× / 0 st)
+                            <button class="btn btn-secondary" style="font-size:0.8rem; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;" onclick="DSP.applyNightcorePreset('speed')">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg>
+                                <span>Speed Up (1.50× / 0 st)</span>
                             </button>
                         </div>
 
