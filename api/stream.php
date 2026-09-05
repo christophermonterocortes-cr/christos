@@ -34,14 +34,14 @@ if ($action === 'resolve_yt') {
         $videoId = trim($inputUrl);
     }
 
-    if (empty($videoId)) {
+    if (empty($videoId) || !preg_match('/^[a-zA-Z0-9_-]{5,30}$/', $videoId)) {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid YouTube video ID or URL']);
         exit;
     }
 
     $ytdlp = file_exists('/usr/local/bin/yt-dlp') ? '/usr/local/bin/yt-dlp' : (file_exists('/usr/bin/yt-dlp') ? '/usr/bin/yt-dlp' : 'yt-dlp');
-    $cmd = escapeshellcmd($ytdlp) . " --no-playlist --no-warnings -f " . escapeshellarg("bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio") . " --print " . escapeshellarg("%(title)s|||%(uploader)s|||%(thumbnail)s|||%(url)s|||%(duration)s") . " " . escapeshellarg("https://www.youtube.com/watch?v={$videoId}");
+    $cmd = escapeshellcmd($ytdlp) . " --no-playlist --no-warnings -f " . escapeshellarg("bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio") . " --print " . escapeshellarg("%(title)s|||%(uploader)s|||%(thumbnail)s|||%(url)s|||%(duration)s") . " -- " . escapeshellarg("https://www.youtube.com/watch?v={$videoId}");
     
     $out = shell_exec($cmd);
     $lines = array_filter(explode("\n", trim($out ?? '')));
@@ -82,14 +82,16 @@ if ($action === 'resolve_yt') {
 
 if ($action === 'search_yt') {
     header('Content-Type: application/json; charset=utf-8');
-    $query = trim($_GET['q'] ?? $_GET['query'] ?? '');
+    $rawQuery = trim($_GET['q'] ?? $_GET['query'] ?? '');
+    // Clean query and prevent leading flag dash
+    $query = ltrim(preg_replace('/[\x00-\x1F\x7F]/u', '', $rawQuery), '- ');
     if (empty($query)) {
         echo json_encode(['status' => 'success', 'success' => true, 'results' => []]);
         exit;
     }
 
     $ytdlp = file_exists('/usr/local/bin/yt-dlp') ? '/usr/local/bin/yt-dlp' : (file_exists('/usr/bin/yt-dlp') ? '/usr/bin/yt-dlp' : 'yt-dlp');
-    $cmd = escapeshellcmd($ytdlp) . " --no-playlist --no-warnings --flat-playlist --print " . escapeshellarg("%(id)s|||%(title)s|||%(uploader)s|||%(thumbnail)s|||%(duration)s") . " " . escapeshellarg("ytsearch12:{$query}");
+    $cmd = escapeshellcmd($ytdlp) . " --no-playlist --no-warnings --flat-playlist --print " . escapeshellarg("%(id)s|||%(title)s|||%(uploader)s|||%(thumbnail)s|||%(duration)s") . " -- " . escapeshellarg("ytsearch12:{$query}");
 
     $out = shell_exec($cmd);
     $lines = array_filter(explode("\n", trim($out ?? '')));

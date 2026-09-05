@@ -23,10 +23,11 @@ function get_db() {
                 
                 init_sqlite_schema($pdo);
             } catch (PDOException $e) {
+                error_log("SQLite Database connection error: " . $e->getMessage());
                 if (php_sapi_name() !== 'cli') {
                     http_response_code(500);
                     header('Content-Type: application/json');
-                    echo json_encode(['error' => 'SQLite Database connection failed', 'message' => $e->getMessage()]);
+                    echo json_encode(['error' => 'Database connection failed. Please check server configuration.']);
                 } else {
                     fwrite(STDERR, "SQLite Database connection error: " . $e->getMessage() . "\n");
                 }
@@ -178,11 +179,24 @@ function init_sqlite_schema($pdo) {
         timestamp INTEGER NOT NULL,
         status TEXT DEFAULT 'pending'
     );
+
+    CREATE TABLE IF NOT EXISTS watch_progress (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER DEFAULT 1,
+        media_type TEXT NOT NULL,
+        media_path TEXT NOT NULL UNIQUE,
+        position REAL NOT NULL DEFAULT 0,
+        duration REAL NOT NULL DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_watch_media ON watch_progress(media_path);
     ";
     $pdo->exec($schema);
 
     // Auto-migrate tables for new columns
     $migrations = [
+        "CREATE TABLE IF NOT EXISTS watch_progress (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER DEFAULT 1, media_type TEXT NOT NULL, media_path TEXT NOT NULL UNIQUE, position REAL NOT NULL DEFAULT 0, duration REAL NOT NULL DEFAULT 0, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP);",
+        "CREATE INDEX IF NOT EXISTS idx_watch_media ON watch_progress(media_path);",
         "ALTER TABLE tracks ADD COLUMN library_tag TEXT DEFAULT 'flac';",
         "ALTER TABLE tracks ADD COLUMN rating INTEGER DEFAULT 0;",
         "ALTER TABLE tracks ADD COLUMN is_favorite INTEGER DEFAULT 0;",

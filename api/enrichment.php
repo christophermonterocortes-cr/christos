@@ -15,7 +15,7 @@ $action = $_GET['action'] ?? 'search_lyrics';
 $db = get_db();
 
 function httpGetJson($url, $headers = []) {
-    $headerStr = "User-Agent: CHRISTOS-HiFi-MediaServer/2.4 ( https://github.com/christos )\r\nAccept: application/json\r\n";
+    $headerStr = "User-Agent: CHRISTOS-HiFi-MediaServer/3.0 ( https://github.com/christos )\r\nAccept: application/json\r\n";
     foreach ($headers as $k => $v) {
         $headerStr .= "{$k}: {$v}\r\n";
     }
@@ -33,7 +33,7 @@ function httpGetJson($url, $headers = []) {
 }
 
 function httpPostJson($url, $data, $headers = []) {
-    $headerStr = "User-Agent: CHRISTOS-HiFi-MediaServer/2.4 ( https://github.com/christos )\r\nContent-Type: application/json\r\nAccept: application/json\r\n";
+    $headerStr = "User-Agent: CHRISTOS-HiFi-MediaServer/3.0 ( https://github.com/christos )\r\nContent-Type: application/json\r\nAccept: application/json\r\n";
     foreach ($headers as $k => $v) {
         $headerStr .= "{$k}: {$v}\r\n";
     }
@@ -52,7 +52,7 @@ function httpPostJson($url, $data, $headers = []) {
 }
 
 function httpPostForm($url, $fields, $headers = []) {
-    $headerStr = "User-Agent: CHRISTOS-HiFi-MediaServer/2.4 ( https://github.com/christos )\r\nContent-Type: application/x-www-form-urlencoded\r\n";
+    $headerStr = "User-Agent: CHRISTOS-HiFi-MediaServer/3.0 ( https://github.com/christos )\r\nContent-Type: application/x-www-form-urlencoded\r\n";
     foreach ($headers as $k => $v) {
         $headerStr .= "{$k}: {$v}\r\n";
     }

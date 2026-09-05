@@ -505,6 +505,42 @@ try {
             echo json_encode($episodes);
             break;
 
+        case 'save_progress':
+            $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            $mediaPath = trim($data['file_path'] ?? $data['path'] ?? '');
+            $pos = (float)($data['position'] ?? 0);
+            $dur = (float)($data['duration'] ?? 0);
+            if (empty($mediaPath)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'file_path required']);
+                break;
+            }
+            require_once __DIR__ . '/../includes/db.php';
+            $db = get_db();
+            $stmt = $db->prepare("INSERT INTO watch_progress (user_id, media_type, media_path, position, duration, updated_at) VALUES (1, 'tv', ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(media_path) DO UPDATE SET position = excluded.position, duration = excluded.duration, updated_at = CURRENT_TIMESTAMP");
+            $stmt->execute([$mediaPath, $pos, $dur]);
+            echo json_encode(['success' => true, 'position' => $pos]);
+            break;
+
+        case 'get_progress':
+            $mediaPath = trim($_GET['file_path'] ?? $_GET['path'] ?? '');
+            if (empty($mediaPath)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'file_path required']);
+                break;
+            }
+            require_once __DIR__ . '/../includes/db.php';
+            $db = get_db();
+            $stmt = $db->prepare("SELECT position, duration, updated_at FROM watch_progress WHERE media_path = ?");
+            $stmt->execute([$mediaPath]);
+            $row = $stmt->fetch();
+            echo json_encode([
+                'position' => (float)($row['position'] ?? 0),
+                'duration' => (float)($row['duration'] ?? 0),
+                'updated_at' => $row['updated_at'] ?? null
+            ]);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['error' => 'Unknown action']);
@@ -591,13 +627,35 @@ function streamTvVideo() {
     exit;
 }
 
+function isValidExternalMediaUrl($url) {
+    if (!filter_var($url, FILTER_VALIDATE_URL)) return false;
+    $parsed = parse_url($url);
+    if (!$parsed || !isset($parsed['scheme']) || !in_array(strtolower($parsed['scheme']), ['http', 'https'])) {
+        return false;
+    }
+    $host = strtolower($parsed['host'] ?? '');
+    if (empty($host) || $host === 'localhost' || $host === '127.0.0.1' || $host === '::1') {
+        return false;
+    }
+    // Block RFC1918 private ranges, loopback, link-local, and cloud metadata
+    $ip = gethostbyname($host);
+    if (filter_var($ip, FILTER_VALIDATE_IP)) {
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return false;
+        }
+        if ($ip === '169.254.169.254') return false;
+    }
+    return true;
+}
+
 function serveEmbeddedTvSubtitle() {
     $file = $_GET['file'] ?? '';
     $streamIdx = (int)($_GET['stream'] ?? 0);
+    $tvDir = realpath(getTvShowsDir());
     $realFile = realpath($file);
-    if (empty($file) || !$realFile || !file_exists($realFile)) {
+    if (empty($file) || !$realFile || !$tvDir || (strpos($realFile, $tvDir . DIRECTORY_SEPARATOR) !== 0 && $realFile !== $tvDir) || !file_exists($realFile)) {
         http_response_code(404);
-        die("Video file not found.");
+        die("Video file not found or access denied.");
     }
 
     $cacheDir = is_dir('/data') ? '/data/subtitles' : sys_get_temp_dir() . '/subtitles';
@@ -621,9 +679,9 @@ function serveEmbeddedTvSubtitle() {
 
 function serveOnlineTvSubtitle() {
     $subUrl = $_GET['url'] ?? '';
-    if (empty($subUrl)) {
+    if (empty($subUrl) || !isValidExternalMediaUrl($subUrl)) {
         http_response_code(400);
-        die("Missing subtitle URL.");
+        die("Invalid or prohibited subtitle URL.");
     }
 
     $cacheDir = is_dir('/data') ? '/data/subtitles' : sys_get_temp_dir() . '/subtitles';

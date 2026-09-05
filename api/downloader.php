@@ -70,9 +70,9 @@ try {
             $service = trim($input['service'] ?? 'auto');
             $quality = trim($input['quality'] ?? '24_96'); // 24_192, 24_96, 16_44, atmos
 
-            if (empty($url)) {
+            if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $url) || str_starts_with($url, '-')) {
                 http_response_code(400);
-                echo json_encode(['error' => 'URL is required']);
+                echo json_encode(['error' => 'A valid HTTP/HTTPS URL is required']);
                 break;
             }
 
@@ -91,7 +91,9 @@ try {
             // Clean log file
             file_put_contents($logFile, "[UNIVERSAL DOWNLOADER] Starting {$service} lossless download\n[TARGET]: {$targetDir}\n[QUALITY]: {$quality}\n[URL]: {$url}\n\n");
 
-            $filenameTemplate = trim($input['filename_template'] ?? '%(artist,uploader)s/%(album,title)s/%(playlist_index&{:02d} - |)s%(title)s.%(ext)s');
+            $rawTemplate = trim($input['filename_template'] ?? '%(artist,uploader)s/%(album,title)s/%(playlist_index&{:02d} - |)s%(title)s.%(ext)s');
+            // Strip any path traversal characters
+            $filenameTemplate = str_replace(['..', ':', '\\'], '', $rawTemplate);
             // Support simple macro syntax like {artist} - {title}
             $customTpl = str_replace(
                 ['{artist}', '{title}', '{album}', '{tracknum}', '{year}'],
@@ -105,11 +107,11 @@ try {
             // Build execution command
             $cmd = "";
             if ($service === 'apple' || stripos($url, 'music.apple.com') !== false) {
-                $cmd = "docker run --rm --network host -v " . escapeshellarg($targetDir) . ":/downloads ghcr.io/zhaarey/apple-music-downloader " . escapeshellarg($url);
+                $cmd = "docker run --rm --network host -v " . escapeshellarg($targetDir) . ":/downloads ghcr.io/zhaarey/apple-music-downloader -- " . escapeshellarg($url);
             } else {
                 $ytdlp = file_exists('/usr/local/bin/yt-dlp') ? '/usr/local/bin/yt-dlp' : 'yt-dlp';
                 $outTemplate = escapeshellarg($targetDir . '/' . ltrim($customTpl, '/'));
-                $cmd = "{$ytdlp} --extract-audio --audio-format flac --audio-quality 0 --embed-thumbnail --embed-metadata -o {$outTemplate} " . escapeshellarg($url);
+                $cmd = "{$ytdlp} --extract-audio --audio-format flac --audio-quality 0 --embed-thumbnail --embed-metadata -o {$outTemplate} -- " . escapeshellarg($url);
             }
 
             $bgCmd = "nohup " . $cmd . " >> " . escapeshellarg($logFile) . " 2>&1 & echo $!";
@@ -231,14 +233,14 @@ try {
         case 'parse_youtube_playlist':
             $rawInput = json_decode(file_get_contents('php://input'), true) ?: $_GET;
             $url = trim($rawInput['url'] ?? '');
-            if (empty($url)) {
+            if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $url) || str_starts_with($url, '-')) {
                 http_response_code(400);
-                echo json_encode(['error' => 'URL is required']);
+                echo json_encode(['error' => 'A valid YouTube playlist URL is required']);
                 break;
             }
 
             $ytdlp = file_exists('/usr/local/bin/yt-dlp') ? '/usr/local/bin/yt-dlp' : (file_exists('/usr/bin/yt-dlp') ? '/usr/bin/yt-dlp' : 'yt-dlp');
-            $cmd = escapeshellcmd($ytdlp) . " --yes-playlist --no-warnings --flat-playlist --print " . escapeshellarg("%(id)s|||%(title)s|||%(uploader)s|||%(thumbnail)s|||%(duration)s") . " " . escapeshellarg($url);
+            $cmd = escapeshellcmd($ytdlp) . " --yes-playlist --no-warnings --flat-playlist --print " . escapeshellarg("%(id)s|||%(title)s|||%(uploader)s|||%(thumbnail)s|||%(duration)s") . " -- " . escapeshellarg($url);
             $out = shell_exec($cmd);
             $lines = array_filter(explode("\n", trim($out ?? '')));
             $videos = [];

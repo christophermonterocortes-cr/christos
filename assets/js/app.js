@@ -702,7 +702,9 @@ function playTvEpisode(epIdx) {
                 playTvEpisode(epIdx + 1);
             }
         },
-        nextInfo
+        nextInfo,
+        ep.file_path,
+        'tv'
     );
 }
 
@@ -900,7 +902,16 @@ function openTheaterModalById(movieId) {
         Player.pause();
     }
 
-    openTheaterModalWithVideo(movie.title + (movie.year ? ' (' + movie.year + ')' : ''), movie.quality, movie.stream_url, movie.subtitles);
+    openTheaterModalWithVideo(
+        movie.title + (movie.year ? ' (' + movie.year + ')' : ''),
+        movie.quality,
+        movie.stream_url,
+        movie.subtitles,
+        null,
+        null,
+        movie.file_path,
+        'movie'
+    );
 }
 
 const CinemaPlayer = {
@@ -921,6 +932,11 @@ const CinemaPlayer = {
     onEndedCallback: null,
     nextEpisodeInfo: null,
     streamUrl: '',
+    currentMediaPath: '',
+    mediaType: 'movie',
+    subOffset: 0,
+    subFontSize: 'standard',
+    progressSaveInterval: null,
 
     init() {
         let modal = document.getElementById('theater-modal');
@@ -933,11 +949,17 @@ const CinemaPlayer = {
         this.modal = modal;
     },
 
-    open(title, quality, streamUrl, subtitles = [], onEndedCallback = null, nextEpisodeInfo = null) {
+    open(title, quality, streamUrl, subtitles = [], onEndedCallback = null, nextEpisodeInfo = null, mediaPath = null, mediaType = 'movie') {
         this.init();
         this.streamUrl = streamUrl;
+        this.currentMediaPath = mediaPath || streamUrl;
+        this.mediaType = mediaType;
         this.onEndedCallback = onEndedCallback;
         this.nextEpisodeInfo = nextEpisodeInfo;
+        this.currentSubIdx = '';
+        this.subOffset = 0;
+        this.subFontSize = localStorage.getItem('christos_theater_sub_size') || 'standard';
+        this.showRemainingTime = localStorage.getItem('christos_theater_time_format') === 'remaining';
 
         if (typeof Player !== 'undefined' && Player.isPlaying) {
             Player.pause();
@@ -974,7 +996,10 @@ const CinemaPlayer = {
                 .theater-video-elem { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important; background: #000000 !important; }
                 .theater-video-elem.fill { object-fit: cover !important; }
                 .theater-video-elem.stretch { object-fit: fill !important; }
-                .theater-video-elem::cue { background-color: rgba(0, 0, 0, 0.8) !important; color: #ffffff !important; font-size: 1.15rem !important; font-weight: 600 !important; text-shadow: 0 2px 4px rgba(0,0,0,0.9) !important; border-radius: 6px !important; padding: 2px 8px !important; }
+                .theater-video-elem::cue { background-color: rgba(0, 0, 0, 0.82) !important; color: #ffffff !important; font-size: 1.15rem !important; font-weight: 600 !important; text-shadow: 0 2px 4px rgba(0,0,0,0.9) !important; border-radius: 6px !important; padding: 3px 10px !important; }
+                .theater-modal.sub-size-standard .theater-video-elem::cue { font-size: 1.15rem !important; }
+                .theater-modal.sub-size-large .theater-video-elem::cue { font-size: 1.45rem !important; }
+                .theater-modal.sub-size-xlarge .theater-video-elem::cue { font-size: 1.80rem !important; }
                 .theater-top-overlay { position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; padding: 24px 36px 48px 36px !important; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%) !important; display: flex !important; justify-content: space-between !important; align-items: center !important; z-index: 100 !important; transition: opacity 0.3s ease, transform 0.3s ease !important; pointer-events: auto !important; }
                 .theater-bottom-overlay { position: absolute !important; bottom: 0 !important; left: 0 !important; right: 0 !important; padding: 60px 36px 24px 36px !important; background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 60%, transparent 100%) !important; display: flex !important; flex-direction: column !important; gap: 12px !important; z-index: 100 !important; transition: opacity 0.3s ease, transform 0.3s ease !important; pointer-events: auto !important; }
                 .theater-controls-hidden .theater-top-overlay { opacity: 0 !important; transform: translateY(-20px) !important; pointer-events: none !important; }
@@ -1005,7 +1030,7 @@ const CinemaPlayer = {
                 .theater-volume-group { display: flex !important; align-items: center !important; gap: 6px !important; }
                 .theater-volume-slider { width: 80px !important; height: 4px !important; -webkit-appearance: none !important; appearance: none !important; background: rgba(255, 255, 255, 0.25) !important; border-radius: 2px !important; outline: none !important; cursor: pointer !important; accent-color: #fa233b !important; }
                 .theater-time-display { font-size: 0.84rem !important; font-weight: 600 !important; color: #cbd5e1 !important; font-variant-numeric: tabular-nums !important; margin-left: 4px !important; cursor: pointer !important; }
-                .theater-menu-popup { position: absolute !important; bottom: 46px !important; right: 0 !important; background: rgba(16, 18, 28, 0.96) !important; backdrop-filter: blur(25px) !important; -webkit-backdrop-filter: blur(25px) !important; border: 1px solid rgba(255, 255, 255, 0.16) !important; border-radius: 10px !important; padding: 6px !important; min-width: 190px !important; max-height: 260px !important; overflow-y: auto !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8) !important; display: none !important; z-index: 200 !important; }
+                .theater-menu-popup { position: absolute !important; bottom: 46px !important; right: 0 !important; background: rgba(16, 18, 28, 0.96) !important; backdrop-filter: blur(25px) !important; -webkit-backdrop-filter: blur(25px) !important; border: 1px solid rgba(255, 255, 255, 0.16) !important; border-radius: 10px !important; padding: 8px !important; min-width: 220px !important; max-height: 320px !important; overflow-y: auto !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8) !important; display: none !important; z-index: 200 !important; }
                 .theater-menu-popup.active { display: block !important; }
                 .theater-menu-title { font-size: 0.74rem !important; font-weight: 700 !important; color: #94a3b8 !important; text-transform: uppercase !important; padding: 4px 10px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; margin-bottom: 4px !important; }
                 .theater-menu-item { display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 7px 10px !important; font-size: 0.82rem !important; color: #e2e8f0 !important; border-radius: 6px !important; cursor: pointer !important; transition: all 0.15s ease !important; }
@@ -1014,9 +1039,18 @@ const CinemaPlayer = {
                 .theater-center-action { position: absolute !important; width: 80px !important; height: 80px !important; border-radius: 50% !important; background: rgba(0, 0, 0, 0.65) !important; backdrop-filter: blur(8px) !important; -webkit-backdrop-filter: blur(8px) !important; border: 2px solid rgba(255, 255, 255, 0.2) !important; display: flex !important; align-items: center !important; justify-content: center !important; color: #ffffff !important; opacity: 0 !important; transform: scale(0.7) !important; pointer-events: none !important; transition: all 0.25s ease !important; z-index: 50 !important; }
                 .theater-center-action.animate { opacity: 1 !important; transform: scale(1) !important; animation: centerPulse 0.5s ease-out forwards !important; }
                 @keyframes centerPulse { 0% { opacity: 1; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.1); } 100% { opacity: 0; transform: scale(1.25); } }
-                .theater-next-episode-banner { position: absolute !important; bottom: 90px !important; right: 32px !important; background: rgba(16, 18, 28, 0.95) !important; backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; border: 1px solid rgba(255, 255, 255, 0.18) !important; border-radius: 12px !important; padding: 14px 18px !important; box-shadow: 0 14px 36px rgba(0, 0, 0, 0.7) !important; display: none !important; align-items: center !important; gap: 14px !important; z-index: 150 !important; }
+                .theater-next-episode-banner { position: absolute !important; top: 80px !important; right: 32px !important; bottom: auto !important; background: rgba(16, 18, 28, 0.95) !important; backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; border: 1px solid rgba(255, 255, 255, 0.18) !important; border-radius: 12px !important; padding: 14px 18px !important; box-shadow: 0 14px 36px rgba(0, 0, 0, 0.7) !important; display: none !important; align-items: center !important; gap: 14px !important; z-index: 150 !important; }
                 .theater-next-episode-banner.active { display: flex !important; }
                 .theater-resume-banner { position: absolute !important; top: 80px !important; left: 32px !important; background: rgba(16, 18, 28, 0.95) !important; backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; border: 1px solid rgba(255, 255, 255, 0.18) !important; border-radius: 10px !important; padding: 10px 16px !important; display: flex !important; align-items: center !important; gap: 12px !important; z-index: 150 !important; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6) !important; }
+                .theater-center-toast { position: absolute !important; top: 80px !important; left: 50% !important; transform: translateX(-50%) translateY(-10px) scale(0.95) !important; background: rgba(16, 18, 28, 0.94) !important; backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; border-radius: 8px !important; padding: 8px 18px !important; font-size: 0.88rem !important; font-weight: 700 !important; color: #ffffff !important; opacity: 0 !important; pointer-events: none !important; transition: all 0.25s ease !important; z-index: 160 !important; box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important; }
+                .theater-center-toast.active { opacity: 1 !important; transform: translateX(-50%) translateY(0) scale(1) !important; }
+                .theater-sub-size-bar { display: flex !important; gap: 4px !important; padding: 4px 6px !important; margin-bottom: 6px !important; background: rgba(255,255,255,0.06) !important; border-radius: 6px !important; }
+                .theater-sub-size-btn { flex: 1 !important; border: none !important; background: transparent !important; color: #cbd5e1 !important; font-size: 0.72rem !important; font-weight: 700 !important; padding: 4px 0 !important; border-radius: 4px !important; cursor: pointer !important; text-align: center !important; transition: all 0.15s ease !important; }
+                .theater-sub-size-btn.active { background: #fa233b !important; color: #fff !important; }
+                .theater-sub-sync-bar { display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 8px 8px 4px 8px !important; border-top: 1px solid rgba(255,255,255,0.08) !important; margin-top: 6px !important; font-size: 0.78rem !important; color: #cbd5e1 !important; }
+                .theater-sub-sync-btns { display: flex !important; align-items: center !important; gap: 4px !important; }
+                .theater-sync-btn { background: rgba(255,255,255,0.12) !important; border: 1px solid rgba(255,255,255,0.18) !important; color: #fff !important; font-size: 0.70rem !important; font-weight: 700 !important; padding: 3px 6px !important; border-radius: 4px !important; cursor: pointer !important; transition: all 0.15s ease !important; }
+                .theater-sync-btn:hover { background: rgba(255,255,255,0.25) !important; }
             </style>
 
             <div class="theater-viewport" id="theater-viewport">
@@ -1030,6 +1064,9 @@ const CinemaPlayer = {
                 <div id="theater-center-action" class="theater-center-action">
                     <svg id="theater-center-icon" viewBox="0 0 24 24" width="44" height="44" fill="currentColor"></svg>
                 </div>
+
+                <!-- Center Toast Notification -->
+                <div id="theater-center-toast" class="theater-center-toast"></div>
 
                 <!-- Smart Resume Notification Banner -->
                 <div id="theater-resume-banner" class="theater-resume-banner" style="display:none;">
@@ -1066,10 +1103,10 @@ const CinemaPlayer = {
                         </div>
                     </div>
                     <div class="theater-top-actions">
-                        <button class="theater-icon-btn" id="theater-dialogue-btn" onclick="CinemaPlayer.toggleDialogueBoost()" title="Dialogue Boost / Night Mode (Compressor)">
+                        <button class="theater-icon-btn" id="theater-dialogue-btn" onclick="CinemaPlayer.toggleDialogueBoost()" title="Dialogue Boost / Night Mode (Compressor) [B]">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                         </button>
-                        <button class="theater-icon-btn" id="theater-fit-btn" onclick="CinemaPlayer.toggleVideoFit()" title="Aspect Ratio: Fit / Fill">
+                        <button class="theater-icon-btn" id="theater-fit-btn" onclick="CinemaPlayer.toggleVideoFit()" title="Aspect Ratio: Fit / Fill / Stretch [S]">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
                         </button>
                         <button class="theater-icon-btn" onclick="CinemaPlayer.togglePiP()" title="Picture-in-Picture">
@@ -1097,17 +1134,17 @@ const CinemaPlayer = {
                     <!-- Deck Buttons -->
                     <div class="theater-deck-bar">
                         <div class="theater-deck-left">
-                            <button class="theater-play-btn" id="theater-play-trigger" onclick="CinemaPlayer.togglePlay()" title="Play/Pause (Space)">
+                            <button class="theater-play-btn" id="theater-play-trigger" onclick="CinemaPlayer.togglePlay()" title="Play/Pause (Space / K)">
                                 <svg id="theater-deck-play-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
                                 <svg id="theater-deck-pause-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                             </button>
 
-                            <button class="theater-skip-btn" onclick="CinemaPlayer.seekRelative(-10)" title="Rewind 10s (Left Arrow / J)">
+                            <button class="theater-skip-btn" onclick="CinemaPlayer.seekRelative(-10)" title="Rewind 10s (Left Arrow / J, Shift for 30s)">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                                 <span>10s</span>
                             </button>
 
-                            <button class="theater-skip-btn" onclick="CinemaPlayer.seekRelative(10)" title="Forward 10s (Right Arrow / L)">
+                            <button class="theater-skip-btn" onclick="CinemaPlayer.seekRelative(10)" title="Forward 10s (Right Arrow / L, Shift for 30s)">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                                 <span>10s</span>
                             </button>
@@ -1136,14 +1173,28 @@ const CinemaPlayer = {
                                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="7" y1="15" x2="7.01" y2="15"/><line x1="11" y1="15" x2="13" y2="15"/><line x1="17" y1="15" x2="17.01" y2="15"/></svg>
                                 </button>
                                 <div id="theater-sub-menu" class="theater-menu-popup">
-                                    <div class="theater-menu-title">Subtitles</div>
+                                    <div class="theater-menu-title">Subtitle Size</div>
+                                    <div class="theater-sub-size-bar">
+                                        <button class="theater-sub-size-btn ${this.subFontSize==='standard'?'active':''}" onclick="CinemaPlayer.setSubtitleSize('standard')">Normal</button>
+                                        <button class="theater-sub-size-btn ${this.subFontSize==='large'?'active':''}" onclick="CinemaPlayer.setSubtitleSize('large')">Large</button>
+                                        <button class="theater-sub-size-btn ${this.subFontSize==='xlarge'?'active':''}" onclick="CinemaPlayer.setSubtitleSize('xlarge')">X-Large</button>
+                                    </div>
+                                    <div class="theater-menu-title" style="margin-top:6px;">Tracks</div>
                                     ${subMenuItems}
+                                    <div class="theater-sub-sync-bar">
+                                        <span>Sync: <b id="theater-sub-offset-val">0.0s</b></span>
+                                        <div class="theater-sub-sync-btns">
+                                            <button class="theater-sync-btn" onclick="CinemaPlayer.adjustSubtitleOffset(-0.5)" title="Delay -0.5s [">[ -0.5s ]</button>
+                                            <button class="theater-sync-btn" onclick="CinemaPlayer.resetSubtitleOffset()" title="Reset Sync">[ Reset ]</button>
+                                            <button class="theater-sync-btn" onclick="CinemaPlayer.adjustSubtitleOffset(0.5)" title="Advance +0.5s ]">[ +0.5s ]</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- Speed Menu -->
                             <div style="position:relative;">
-                                <button class="theater-icon-btn" id="theater-speed-btn" onclick="CinemaPlayer.toggleMenu('speed')" title="Playback Speed">
+                                <button class="theater-icon-btn" id="theater-speed-btn" onclick="CinemaPlayer.toggleMenu('speed')" title="Playback Speed (< / >)">
                                     <span id="theater-speed-label" style="font-size:0.78rem; font-weight:800;">1x</span>
                                 </button>
                                 <div id="theater-speed-menu" class="theater-menu-popup">
@@ -1165,25 +1216,66 @@ const CinemaPlayer = {
 
         this.modal.style.setProperty('display', 'flex', 'important');
         this.modal.classList.add('active');
+        this.modal.classList.add(`sub-size-${this.subFontSize}`);
         this.video = document.getElementById('theater-video-player');
         this.setupEvents();
 
-        // Check saved playback position
-        const savedTime = parseFloat(localStorage.getItem('christos_video_pos_' + streamUrl) || '0');
-        if (savedTime > 15) {
-            this.video.currentTime = savedTime;
-            const resumeBanner = document.getElementById('theater-resume-banner');
-            const resumeTime = document.getElementById('theater-resume-time');
-            if (resumeBanner && resumeTime) {
-                resumeTime.textContent = this.formatTime(savedTime);
-                resumeBanner.style.display = 'flex';
-                setTimeout(() => { if (resumeBanner) resumeBanner.style.display = 'none'; }, 6000);
-            }
-        }
+        // Check central & local playback position
+        this.fetchResumePosition();
 
         // Auto play
         this.video.play().catch(() => {});
         this.resetControlsTimer();
+
+        if (this.progressSaveInterval) clearInterval(this.progressSaveInterval);
+        this.progressSaveInterval = setInterval(() => this.saveResumePosition(), 15000);
+    },
+
+    fetchResumePosition() {
+        const localTime = parseFloat(localStorage.getItem('christos_video_pos_' + this.streamUrl) || '0');
+        const applyResume = (time) => {
+            if (time > 15 && this.video) {
+                this.video.currentTime = time;
+                const resumeBanner = document.getElementById('theater-resume-banner');
+                const resumeTime = document.getElementById('theater-resume-time');
+                if (resumeBanner && resumeTime) {
+                    resumeTime.textContent = this.formatTime(time);
+                    resumeBanner.style.display = 'flex';
+                    setTimeout(() => { if (resumeBanner) resumeBanner.style.display = 'none'; }, 6000);
+                }
+            }
+        };
+
+        if (this.currentMediaPath) {
+            const endpoint = this.mediaType === 'tv' ? '/api/tvshows.php' : '/api/movies.php';
+            fetch(`${endpoint}?action=get_progress&file_path=${encodeURIComponent(this.currentMediaPath)}`)
+                .then(r => r.json())
+                .then(data => {
+                    const serverPos = parseFloat(data.position || '0');
+                    const targetPos = Math.max(localTime, serverPos);
+                    applyResume(targetPos);
+                })
+                .catch(() => {
+                    applyResume(localTime);
+                });
+        } else {
+            applyResume(localTime);
+        }
+    },
+
+    saveResumePosition() {
+        if (!this.video || !this.currentMediaPath) return;
+        const pos = this.video.currentTime;
+        const dur = this.video.duration || 0;
+        if (pos > 5) {
+            localStorage.setItem('christos_video_pos_' + this.streamUrl, pos);
+            const endpoint = this.mediaType === 'tv' ? '/api/tvshows.php' : '/api/movies.php';
+            fetch(`${endpoint}?action=save_progress`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_path: this.currentMediaPath, position: pos, duration: dur })
+            }).catch(() => {});
+        }
     },
 
     setupEvents() {
@@ -1193,26 +1285,23 @@ const CinemaPlayer = {
         this.video.addEventListener('timeupdate', () => this.onTimeUpdate());
         this.video.addEventListener('progress', () => this.onProgress());
         this.video.addEventListener('play', () => this.updatePlayIcon(true));
-        this.video.addEventListener('pause', () => this.updatePlayIcon(false));
+        this.video.addEventListener('pause', () => {
+            this.updatePlayIcon(false);
+            this.saveResumePosition();
+        });
         this.video.addEventListener('ended', () => this.onEnded());
 
         // Viewport click / double click
         const viewport = document.getElementById('theater-viewport');
-        let clickTimeout = null;
         if (viewport) {
             viewport.addEventListener('click', (e) => {
                 if (e.target.closest('.theater-top-overlay') || e.target.closest('.theater-bottom-overlay') || e.target.closest('.theater-menu-popup') || e.target.closest('.theater-resume-banner') || e.target.closest('.theater-next-episode-banner')) return;
-                
-                if (clickTimeout) {
-                    clearTimeout(clickTimeout);
-                    clickTimeout = null;
-                    this.toggleFullscreen();
-                } else {
-                    clickTimeout = setTimeout(() => {
-                        clickTimeout = null;
-                        this.togglePlay();
-                    }, 220);
-                }
+                this.togglePlay();
+            });
+
+            viewport.addEventListener('dblclick', (e) => {
+                if (e.target.closest('.theater-top-overlay') || e.target.closest('.theater-bottom-overlay') || e.target.closest('.theater-menu-popup') || e.target.closest('.theater-resume-banner') || e.target.closest('.theater-next-episode-banner')) return;
+                this.toggleFullscreen();
             });
 
             viewport.addEventListener('mousemove', () => this.onMouseMove());
@@ -1282,7 +1371,7 @@ const CinemaPlayer = {
         if (!this.video) return;
         this.updateScrubUI();
 
-        // Save position
+        // Save position locally
         if (this.video.currentTime > 5 && this.streamUrl) {
             localStorage.setItem('christos_video_pos_' + this.streamUrl, this.video.currentTime);
         }
@@ -1326,6 +1415,7 @@ const CinemaPlayer = {
 
     toggleTimeFormat() {
         this.showRemainingTime = !this.showRemainingTime;
+        localStorage.setItem('christos_theater_time_format', this.showRemainingTime ? 'remaining' : 'total');
         this.updateScrubUI();
     },
 
@@ -1375,10 +1465,30 @@ const CinemaPlayer = {
         actionElem.classList.add('animate');
     },
 
+    showCenterToast(msg) {
+        let toast = document.getElementById('theater-center-toast');
+        if (!toast && this.modal) {
+            toast = document.createElement('div');
+            toast.id = 'theater-center-toast';
+            toast.className = 'theater-center-toast';
+            this.modal.appendChild(toast);
+        }
+        if (toast) {
+            toast.textContent = msg;
+            toast.classList.remove('active');
+            void toast.offsetWidth;
+            toast.classList.add('active');
+            setTimeout(() => { if (toast) toast.classList.remove('active'); }, 2000);
+        }
+    },
+
     setVolume(val) {
         if (!this.video) return;
-        this.video.volume = parseFloat(val);
-        this.video.muted = (val == 0);
+        const v = Math.max(0, Math.min(1, parseFloat(val)));
+        this.video.volume = v;
+        this.video.muted = (v === 0);
+        const slider = document.getElementById('theater-volume-slider');
+        if (slider) slider.value = this.video.muted ? 0 : v;
         this.updateVolumeIcon();
     },
 
@@ -1440,6 +1550,7 @@ const CinemaPlayer = {
         }
 
         if (btn) btn.classList.toggle('active', this.dialogueBoost);
+        this.showCenterToast(`Dialogue Boost: ${this.dialogueBoost ? 'ON' : 'OFF'}`);
     },
 
     toggleVideoFit() {
@@ -1454,6 +1565,7 @@ const CinemaPlayer = {
 
         const btn = document.getElementById('theater-fit-btn');
         if (btn) btn.classList.toggle('active', this.fitMode !== 'contain');
+        this.showCenterToast(`Aspect: ${this.fitMode.toUpperCase()}`);
     },
 
     togglePiP() {
@@ -1502,6 +1614,7 @@ const CinemaPlayer = {
 
     setSubtitle(idx) {
         if (!this.video) return;
+        this.currentSubIdx = (idx !== '' ? parseInt(idx, 10) : '');
         const tracks = this.video.textTracks;
         for (let i = 0; i < tracks.length; i++) {
             tracks[i].mode = 'disabled';
@@ -1510,17 +1623,69 @@ const CinemaPlayer = {
         const items = document.querySelectorAll('#theater-sub-menu .theater-menu-item');
         items.forEach(it => it.classList.remove('active'));
 
-        if (idx !== '') {
-            const target = tracks[parseInt(idx, 10)];
-            if (target) target.mode = 'showing';
-            if (items[idx + 1]) items[idx + 1].classList.add('active');
+        if (this.currentSubIdx !== '') {
+            const target = tracks[this.currentSubIdx];
+            if (target) {
+                target.mode = 'showing';
+                this.applySubtitleOffset();
+            }
+            if (items[this.currentSubIdx + 1]) items[this.currentSubIdx + 1].classList.add('active');
         } else {
             if (items[0]) items[0].classList.add('active');
         }
 
         const subBtn = document.getElementById('theater-sub-btn');
-        if (subBtn) subBtn.classList.toggle('active', idx !== '');
+        if (subBtn) subBtn.classList.toggle('active', this.currentSubIdx !== '');
         this.closeMenus();
+    },
+
+    adjustSubtitleOffset(delta) {
+        this.subOffset = Math.round((this.subOffset + delta) * 10) / 10;
+        this.applySubtitleOffset();
+        const lbl = document.getElementById('theater-sub-offset-val');
+        if (lbl) lbl.textContent = (this.subOffset > 0 ? '+' : '') + this.subOffset.toFixed(1) + 's';
+        this.showCenterToast(`Subtitle Sync: ${(this.subOffset > 0 ? '+' : '') + this.subOffset.toFixed(1)}s`);
+    },
+
+    resetSubtitleOffset() {
+        this.subOffset = 0;
+        this.applySubtitleOffset();
+        const lbl = document.getElementById('theater-sub-offset-val');
+        if (lbl) lbl.textContent = '0.0s';
+        this.showCenterToast('Subtitle Sync: Reset');
+    },
+
+    applySubtitleOffset() {
+        if (!this.video) return;
+        const tracks = this.video.textTracks;
+        for (let i = 0; i < tracks.length; i++) {
+            const track = tracks[i];
+            if (track.cues) {
+                for (let j = 0; j < track.cues.length; j++) {
+                    const cue = track.cues[j];
+                    if (cue._origStart === undefined) {
+                        cue._origStart = cue.startTime;
+                        cue._origEnd = cue.endTime;
+                    }
+                    cue.startTime = Math.max(0, cue._origStart + this.subOffset);
+                    cue.endTime = Math.max(0, cue._origEnd + this.subOffset);
+                }
+            }
+        }
+    },
+
+    setSubtitleSize(size) {
+        this.subFontSize = size;
+        localStorage.setItem('christos_theater_sub_size', size);
+        if (this.modal) {
+            this.modal.classList.remove('sub-size-standard', 'sub-size-large', 'sub-size-xlarge');
+            this.modal.classList.add(`sub-size-${size}`);
+        }
+        const btns = document.querySelectorAll('.theater-sub-size-btn');
+        btns.forEach(b => {
+            b.classList.toggle('active', b.getAttribute('onclick').includes(`'${size}'`));
+        });
+        this.showCenterToast(`Subtitles: ${size.toUpperCase()}`);
     },
 
     setSpeed(speed) {
@@ -1623,15 +1788,23 @@ const CinemaPlayer = {
                 e.preventDefault();
                 this.toggleMute();
                 break;
+            case 'b':
+                e.preventDefault();
+                this.toggleDialogueBoost();
+                break;
+            case 's':
+                e.preventDefault();
+                this.toggleVideoFit();
+                break;
             case 'arrowleft':
             case 'j':
                 e.preventDefault();
-                this.seekRelative(-10);
+                this.seekRelative(e.shiftKey ? -30 : -10);
                 break;
             case 'arrowright':
             case 'l':
                 e.preventDefault();
-                this.seekRelative(10);
+                this.seekRelative(e.shiftKey ? 30 : 10);
                 break;
             case 'arrowup':
                 e.preventDefault();
@@ -1640,6 +1813,26 @@ const CinemaPlayer = {
             case 'arrowdown':
                 e.preventDefault();
                 if (this.video) this.setVolume(Math.max(0, this.video.volume - 0.05));
+                break;
+            case '<':
+            case ',':
+                e.preventDefault();
+                this.setSpeed(Math.max(0.5, Math.round((this.currentSpeed - 0.25) * 100) / 100));
+                this.showCenterToast(`Speed: ${this.currentSpeed}x`);
+                break;
+            case '>':
+            case '.':
+                e.preventDefault();
+                this.setSpeed(Math.min(2.0, Math.round((this.currentSpeed + 0.25) * 100) / 100));
+                this.showCenterToast(`Speed: ${this.currentSpeed}x`);
+                break;
+            case '[':
+                e.preventDefault();
+                this.adjustSubtitleOffset(-0.5);
+                break;
+            case ']':
+                e.preventDefault();
+                this.adjustSubtitleOffset(0.5);
                 break;
             case 'c':
                 e.preventDefault();
@@ -1653,6 +1846,11 @@ const CinemaPlayer = {
     },
 
     close() {
+        this.saveResumePosition();
+        if (this.progressSaveInterval) {
+            clearInterval(this.progressSaveInterval);
+            this.progressSaveInterval = null;
+        }
         if (this.nextEpTimeout) {
             clearInterval(this.nextEpTimeout);
             this.nextEpTimeout = null;
@@ -1695,8 +1893,8 @@ const CinemaPlayer = {
     }
 };
 
-function openTheaterModalWithVideo(title, quality, streamUrl, subtitles = [], onEndedCallback = null, nextEpisodeInfo = null) {
-    CinemaPlayer.open(title, quality, streamUrl, subtitles, onEndedCallback, nextEpisodeInfo);
+function openTheaterModalWithVideo(title, quality, streamUrl, subtitles = [], onEndedCallback = null, nextEpisodeInfo = null, mediaPath = null, mediaType = 'movie') {
+    CinemaPlayer.open(title, quality, streamUrl, subtitles, onEndedCallback, nextEpisodeInfo, mediaPath, mediaType);
 }
 
 function closeTheaterModal() {
