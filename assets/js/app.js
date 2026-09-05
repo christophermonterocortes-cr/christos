@@ -2470,8 +2470,22 @@ function playAllArtistTracks() {
     }
 }
 
+let currentSettingsTab = 'appearance';
+
+function switchSettingsTab(tabName) {
+    currentSettingsTab = tabName;
+    document.querySelectorAll('.sonora-settings-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+    document.querySelectorAll('.sonora-tab-content').forEach(content => {
+        content.style.display = (content.dataset.tab === tabName) ? 'block' : 'none';
+    });
+}
+
 async function renderSettingsView() {
     const savedTheme = localStorage.getItem('christos_theme') || 'apple';
+    const romanizeEnabled = localStorage.getItem('christos_romanize_lyrics') !== 'false';
+    const cinemaDefaultSub = localStorage.getItem('christos_cinema_sub_lang') || 'spa';
     const viewContainer = document.getElementById('content-view');
 
     // Fetch scrobble settings
@@ -2482,125 +2496,257 @@ async function renderSettingsView() {
     } catch (e) {}
 
     viewContainer.innerHTML = `
-        <div class="view-header">
-            <h2>Settings & Discovery</h2>
-            <p style="color:var(--text-secondary); margin-top:4px;">Configure scrobbling, ReplayGain loudness normalization, themes, and server info</p>
+        <div class="view-header" style="margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                <div>
+                    <h2>Settings & Studio Preferences</h2>
+                    <p style="color:var(--text-secondary); margin-top:4px;">Customized audio normalization, Sonora obsidian theming, Romanized lyrics, and media servers</p>
+                </div>
+                <div style="font-size:0.8rem; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); padding:4px 10px; border-radius:6px; color:var(--accent-color); font-weight:700;">
+                    Sonora Core Active
+                </div>
+            </div>
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:20px;">
-            <!-- Scrobbling & Play History Sync Card -->
-            <div class="downloader-card">
-                <h3 style="font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                    <span>
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-color)" stroke-width="2" style="vertical-align:middle; margin-right:6px;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-                        Scrobbling (Last.fm & ListenBrainz)
-                    </span>
-                    <span id="scrobble-save-badge" style="font-size:0.75rem; padding:2px 8px; border-radius:10px; background:rgba(32,191,107,0.2); color:#20bf6b; display:none;">Saved!</span>
-                </h3>
+        <!-- Sonora Tab Navigation Bar -->
+        <div style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap; border-bottom:1px solid var(--border-color); padding-bottom:12px;">
+            <button class="sonora-settings-tab ${currentSettingsTab==='appearance'?'active':''}" data-tab="appearance" onclick="switchSettingsTab('appearance')">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <span>Appearance & Themes</span>
+            </button>
+            <button class="sonora-settings-tab ${currentSettingsTab==='audio'?'active':''}" data-tab="audio" onclick="switchSettingsTab('audio')">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                <span>Audio Engine & Normalizer</span>
+            </button>
+            <button class="sonora-settings-tab ${currentSettingsTab==='lyrics'?'active':''}" data-tab="lyrics" onclick="switchSettingsTab('lyrics')">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></svg>
+                <span>Lyrics & Romanization</span>
+            </button>
+            <button class="sonora-settings-tab ${currentSettingsTab==='cinema'?'active':''}" data-tab="cinema" onclick="switchSettingsTab('cinema')">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
+                <span>Cinema & Subtitles</span>
+            </button>
+            <button class="sonora-settings-tab ${currentSettingsTab==='system'?'active':''}" data-tab="system" onclick="switchSettingsTab('system')">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                <span>Scrobblers & TrueNAS</span>
+            </button>
+        </div>
 
-                <!-- Last.fm Section -->
-                <div style="margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.06);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                        <label style="font-weight:700; color:#fff; font-size:0.92rem; display:flex; align-items:center; gap:6px;">
-                            <span style="color:#d51007; font-weight:900;">Last.fm</span> Scrobbling
-                        </label>
-                        <input type="checkbox" id="setting-lastfm-enabled" ${scrobbleData.lastfm?.enabled ? 'checked' : ''} onchange="saveScrobblerSettings()">
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:8px; font-size:0.85rem;">
-                        <input type="text" id="setting-lastfm-user" class="form-input" placeholder="Last.fm Username" value="${escapeHtml(scrobbleData.lastfm?.username || '')}" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
-                        <input type="text" id="setting-lastfm-key" class="form-input" placeholder="Last.fm API Key (Optional)" value="" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
-                        <input type="password" id="setting-lastfm-session" class="form-input" placeholder="Last.fm Session Key (sk)" value="" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
-                    </div>
-                </div>
-
-                <!-- ListenBrainz Section -->
-                <div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                        <label style="font-weight:700; color:#fff; font-size:0.92rem; display:flex; align-items:center; gap:6px;">
-                            <span style="color:#eb743b; font-weight:900;">ListenBrainz</span> Scrobbling
-                        </label>
-                        <input type="checkbox" id="setting-listenbrainz-enabled" ${scrobbleData.listenbrainz?.enabled ? 'checked' : ''} onchange="saveScrobblerSettings()">
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:8px; font-size:0.85rem;">
-                        <input type="password" id="setting-listenbrainz-token" class="form-input" placeholder="ListenBrainz User Token" value="${escapeHtml(scrobbleData.listenbrainz?.token_masked || '')}" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
-                    </div>
-                </div>
-
-                <button class="btn btn-primary" onclick="saveScrobblerSettings()" style="width:100%; margin-top:14px; padding:8px 16px;">
-                    Save Scrobbler Credentials
-                </button>
-            </div>
-
-            <!-- ReplayGain Loudness Engine Card -->
-            <div class="downloader-card">
-                <h3 style="font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-color)" stroke-width="2" style="vertical-align:middle; margin-right:6px;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                    ReplayGain & Loudness Normalization
-                </h3>
-                <div style="display:flex; flex-direction:column; gap:14px; font-size:0.9rem;">
-                    <div>
-                        <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600; display:block; margin-bottom:6px;">Default Normalization Mode</label>
-                        <select class="form-select" onchange="DSP.setReplayGainMode(this.value)">
-                            <option value="track" ${DSP.replayGainMode==='track'?'selected':''}>Track Gain (Equalize each song)</option>
-                            <option value="album" ${DSP.replayGainMode==='album'?'selected':''}>Album Gain (Preserve album dynamics)</option>
-                            <option value="off" ${DSP.replayGainMode==='off'?'selected':''}>Disabled (Original volume)</option>
+        <!-- Tab 1: Appearance -->
+        <div class="sonora-tab-content" data-tab="appearance" style="display:${currentSettingsTab==='appearance'?'block':'none'};">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:20px;">
+                <div class="downloader-card">
+                    <h3 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:14px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+                        Design System & UI Theme
+                    </h3>
+                    <div style="margin-bottom:16px;">
+                        <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600; display:block; margin-bottom:6px;">Select Theme Preset</label>
+                        <select class="form-select" id="settings-theme-select" onchange="changeAppTheme(this.value)">
+                            <option value="sonora" ${savedTheme==='sonora'?'selected':''}>Sonora Obsidian Studio (GPUI Edition)</option>
+                            <option value="apple" ${savedTheme==='apple'?'selected':''}>Apple Music (Hi-Fi Glassmorphism)</option>
+                            <option value="spotify" ${savedTheme==='spotify'?'selected':''}>Spotify (Modern Dark Studio)</option>
+                            <option value="tidal" ${savedTheme==='tidal'?'selected':''}>Tidal (Master Hi-Res Cyan)</option>
+                            <option value="qobuz" ${savedTheme==='qobuz'?'selected':''}>Qobuz (Grand Studio Velvet & Gold)</option>
+                            <option value="xbox" ${savedTheme==='xbox'?'selected':''}>Xbox 2001 (Neon Phosphor CRT Blade)</option>
                         </select>
                     </div>
+                    <p style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5;">
+                        Sonora Minimalist theme applies dark obsidian slate backgrounds with micro-borders and neon emerald accents inspired by the native GPUI desktop client.
+                    </p>
+                </div>
+
+                <div class="downloader-card">
+                    <h3 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:14px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+                        Visualizer Default Engine
+                    </h3>
                     <div>
-                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                            <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600;">Pre-Amp Volume Adjustment</label>
-                            <span style="font-weight:700; color:#fff;">${DSP.preampDb > 0 ? '+' : ''}${DSP.preampDb.toFixed(1)} dB</span>
-                        </div>
-                        <input type="range" min="-6" max="6" step="0.5" value="${DSP.preampDb}" oninput="DSP.setPreamp(this.value)" style="width:100%;">
+                        <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600; display:block; margin-bottom:6px;">Active Visualizer</label>
+                        <select class="form-select" onchange="changeVisualizer(this.value)">
+                            <option value="0">Disabled / Performance Mode</option>
+                            <option value="1">NCS Circular Spectrum</option>
+                            <option value="2">Audiophile EQ Frequency Bars</option>
+                            <option value="3">Glow Waveform</option>
+                            <option value="4">3D Neon Sphere</option>
+                            <option value="5">3D Particle Vortex</option>
+                            <option value="6">360 Radial</option>
+                            <option value="7" selected>Xbox 2001 Neon Phosphor</option>
+                            <option value="8">Synthwave Grid</option>
+                            <option value="9">Analog VU Meter</option>
+                            <option value="10">Liquid Lava</option>
+                        </select>
                     </div>
-                    <label style="display:flex; align-items:center; gap:8px; color:var(--text-secondary); cursor:pointer; font-weight:600;">
-                        <input type="checkbox" ${DSP.antiClipping?'checked':''} onchange="DSP.toggleAntiClipping(this.checked)">
-                        Anti-Clipping Peak Limiter (Prevents digital distortion)
-                    </label>
                 </div>
             </div>
+        </div>
 
-            <!-- Themes Card -->
-            <div class="downloader-card">
-                <h3 style="font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:6px;"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                    UI Themes & Layout Presets
-                </h3>
-                <div>
-                    <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600; display:block; margin-bottom:6px;">Theme Mode (Radical Rearrange)</label>
-                    <select class="form-select" id="settings-theme-select" onchange="changeAppTheme(this.value)">
-                        <option value="apple" ${savedTheme==='apple'?'selected':''}>Apple Music (Hi-Fi Glassmorphism)</option>
-                        <option value="spotify" ${savedTheme==='spotify'?'selected':''}>Spotify (Modern Dark Studio)</option>
-                        <option value="tidal" ${savedTheme==='tidal'?'selected':''}>Tidal (Master Hi-Res Cyan)</option>
-                        <option value="qobuz" ${savedTheme==='qobuz'?'selected':''}>Qobuz (Grand Studio Velvet & Gold)</option>
-                        <option value="xbox" ${savedTheme==='xbox'?'selected':''}>Xbox 2001 (Neon Phosphor CRT Blade)</option>
-                    </select>
+        <!-- Tab 2: Audio Engine & Normalizer -->
+        <div class="sonora-tab-content" data-tab="audio" style="display:${currentSettingsTab==='audio'?'block':'none'};">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:20px;">
+                <!-- Sonora Audio Normalizer -->
+                <div class="downloader-card">
+                    <h3 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:14px; border-bottom:1px solid var(--border-color); padding-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                        <span>Sonora Audio Normalization</span>
+                        <span style="font-size:0.75rem; padding:2px 8px; border-radius:10px; background:rgba(16,185,129,0.15); color:var(--accent-color); font-weight:700;">EBU R128</span>
+                    </h3>
+                    <div style="display:flex; flex-direction:column; gap:14px; font-size:0.9rem;">
+                        <label style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer; font-weight:600;">
+                            <input type="checkbox" ${DSP.sonoraNormalizerEnabled?'checked':''} onchange="DSP.toggleSonoraNormalization(this.checked)">
+                            Enable Dynamic Loudness Leveling (Prevents sudden volume spikes)
+                        </label>
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600;">Target Loudness</label>
+                                <span style="font-weight:700; color:var(--accent-color);">${DSP.sonoraTargetLufs} LUFS</span>
+                            </div>
+                            <input type="range" min="-18" max="-10" step="1" value="${DSP.sonoraTargetLufs}" oninput="DSP.setSonoraTargetLufs(this.value); this.previousElementSibling.lastElementChild.textContent = this.value + ' LUFS';" style="width:100%;">
+                            <div style="display:flex; justify-content:space-between; font-size:0.72rem; color:var(--text-secondary); margin-top:2px;">
+                                <span>-18 LUFS (Hi-Fi Dynamic)</span>
+                                <span>-14 LUFS (Spotify Standard)</span>
+                                <span>-10 LUFS (Loud)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ReplayGain & Pre-Amp -->
+                <div class="downloader-card">
+                    <h3 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:14px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+                        ReplayGain & Pre-Amp Control
+                    </h3>
+                    <div style="display:flex; flex-direction:column; gap:14px; font-size:0.9rem;">
+                        <div>
+                            <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600; display:block; margin-bottom:6px;">ReplayGain Mode</label>
+                            <select class="form-select" onchange="DSP.setReplayGainMode(this.value)">
+                                <option value="track" ${DSP.replayGainMode==='track'?'selected':''}>Track Gain (Equalize each song)</option>
+                                <option value="album" ${DSP.replayGainMode==='album'?'selected':''}>Album Gain (Preserve album dynamics)</option>
+                                <option value="off" ${DSP.replayGainMode==='off'?'selected':''}>Disabled (Original Bit-Perfect)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600;">Pre-Amp Volume Adjustment</label>
+                                <span style="font-weight:700; color:#fff;">${DSP.preampDb > 0 ? '+' : ''}${DSP.preampDb.toFixed(1)} dB</span>
+                            </div>
+                            <input type="range" min="-6" max="6" step="0.5" value="${DSP.preampDb}" oninput="DSP.setPreamp(this.value)" style="width:100%;">
+                        </div>
+                        <label style="display:flex; align-items:center; gap:8px; color:var(--text-secondary); cursor:pointer; font-weight:600;">
+                            <input type="checkbox" ${DSP.antiClipping?'checked':''} onchange="DSP.toggleAntiClipping(this.checked)">
+                            Anti-Clipping Peak Limiter
+                        </label>
+                        <button class="btn btn-primary" onclick="DSP.openModal()" style="margin-top:6px; width:100%;">
+                            Open 10-Band Graphic EQ Studio
+                        </button>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- DSP Audio Equalizer Card -->
-            <div class="downloader-card">
-                <h3 style="font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-color)" stroke-width="2" style="vertical-align:middle; margin-right:6px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    Audiophile DSP Studio & Equalizer
-                </h3>
-                <div>
-                    <button class="btn btn-primary" onclick="DSP.openModal()" style="width:100%;">
-                        Open 10-Band EQ & DSP Studio
+        <!-- Tab 3: Lyrics & Romanization -->
+        <div class="sonora-tab-content" data-tab="lyrics" style="display:${currentSettingsTab==='lyrics'?'block':'none'};">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:20px;">
+                <div class="downloader-card">
+                    <h3 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:14px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+                        Sonora Romanization Engine
+                    </h3>
+                    <div style="display:flex; flex-direction:column; gap:14px; font-size:0.9rem;">
+                        <label style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer; font-weight:600;">
+                            <input type="checkbox" id="setting-romanize-lyrics" ${romanizeEnabled?'checked':''} onchange="localStorage.setItem('christos_romanize_lyrics', this.checked)">
+                            Phonetic Romanization for Japanese (Romaji) & Korean (Hangul)
+                        </label>
+                        <p style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5;">
+                            When enabled, Japanese Hiragana/Katakana and Korean Hangul lyrics will display matching Romanized subtitles directly below the original line.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="downloader-card">
+                    <h3 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:14px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+                        Karaoke Sync & Animation
+                    </h3>
+                    <div style="display:flex; flex-direction:column; gap:12px; font-size:0.9rem;">
+                        <div style="color:var(--text-secondary); font-size:0.85rem;">
+                            Synced LRC timestamps automatically scroll active lyric lines into view with dynamic neon glows in Fullscreen and Sidebar modes.
+                        </div>
+                        <button class="btn btn-secondary" onclick="toggleLyrics()" style="width:100%;">
+                            Open Lyrics Side Drawer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Cinema & Subtitles -->
+        <div class="sonora-tab-content" data-tab="cinema" style="display:${currentSettingsTab==='cinema'?'block':'none'};">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:20px;">
+                <div class="downloader-card">
+                    <h3 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:14px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+                        Subtitle Discovery & Languages
+                    </h3>
+                    <div style="display:flex; flex-direction:column; gap:14px; font-size:0.9rem;">
+                        <div>
+                            <label style="font-size:0.85rem; color:var(--text-secondary); font-weight:600; display:block; margin-bottom:6px;">Default Subtitle Language</label>
+                            <select class="form-select" onchange="localStorage.setItem('christos_cinema_sub_lang', this.value)">
+                                <option value="spa" ${cinemaDefaultSub==='spa'?'selected':''}>Spanish (Latino / Castilian)</option>
+                                <option value="eng" ${cinemaDefaultSub==='eng'?'selected':''}>English (Standard / SDH)</option>
+                                <option value="off" ${cinemaDefaultSub==='off'?'selected':''}>Off by Default</option>
+                            </select>
+                        </div>
+                        <div style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5;">
+                            Movies and TV episodes automatically search 3 tiers: local files, embedded MKV streams, and online OpenSubtitles.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 5: Scrobblers & TrueNAS -->
+        <div class="sonora-tab-content" data-tab="system" style="display:${currentSettingsTab==='system'?'block':'none'};">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:20px;">
+                <div class="downloader-card">
+                    <h3 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:14px; border-bottom:1px solid var(--border-color); padding-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                        <span>Scrobbling (Last.fm & ListenBrainz)</span>
+                        <span id="scrobble-save-badge" style="font-size:0.75rem; padding:2px 8px; border-radius:10px; background:rgba(16,185,129,0.2); color:var(--accent-color); display:none;">Saved!</span>
+                    </h3>
+                    <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <label style="font-weight:700; color:#fff; font-size:0.9rem; display:flex; align-items:center; gap:6px;">
+                                <span style="color:#d51007; font-weight:900;">Last.fm</span> Scrobbling
+                            </label>
+                            <input type="checkbox" id="setting-lastfm-enabled" ${scrobbleData.lastfm?.enabled ? 'checked' : ''} onchange="saveScrobblerSettings()">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:8px; font-size:0.85rem;">
+                            <input type="text" id="setting-lastfm-user" class="form-input" placeholder="Last.fm Username" value="${escapeHtml(scrobbleData.lastfm?.username || '')}" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
+                            <input type="password" id="setting-lastfm-session" class="form-input" placeholder="Last.fm Session Key (sk)" value="" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <label style="font-weight:700; color:#fff; font-size:0.9rem; display:flex; align-items:center; gap:6px;">
+                                <span style="color:#eb743b; font-weight:900;">ListenBrainz</span> Scrobbling
+                            </label>
+                            <input type="checkbox" id="setting-listenbrainz-enabled" ${scrobbleData.listenbrainz?.enabled ? 'checked' : ''} onchange="saveScrobblerSettings()">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:8px; font-size:0.85rem;">
+                            <input type="password" id="setting-listenbrainz-token" class="form-input" placeholder="ListenBrainz User Token" value="${escapeHtml(scrobbleData.listenbrainz?.token_masked || '')}" style="padding:6px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:6px; color:#fff;">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveScrobblerSettings()" style="width:100%; margin-top:14px; padding:8px 16px;">
+                        Save Credentials
                     </button>
                 </div>
-            </div>
 
-            <!-- Server Info Card -->
-            <div class="downloader-card">
-                <h3 style="font-size:1.1rem; font-weight:700; color:#fff; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:6px;"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-                    Server Information
-                </h3>
-                <div style="display:flex; flex-direction:column; gap:10px; color:var(--text-secondary); font-size:0.9rem;">
-                    <div style="display:flex; justify-content:space-between;"><span>Host</span><span style="color:#fff; font-weight:600;">TrueNAS SCALE</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>LAN Address</span><span style="color:#fff; font-weight:600;">192.168.0.245:16010</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Version</span><span style="color:var(--accent-color); font-weight:700;">CHRISTOS v2.5.0</span></div>
+                <div class="downloader-card">
+                    <h3 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:14px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+                        TrueNAS Host & Maintenance
+                    </h3>
+                    <div style="display:flex; flex-direction:column; gap:10px; color:var(--text-secondary); font-size:0.88rem; margin-bottom:16px;">
+                        <div style="display:flex; justify-content:space-between;"><span>Host</span><span style="color:#fff; font-weight:600;">TrueNAS SCALE</span></div>
+                        <div style="display:flex; justify-content:space-between;"><span>LAN Address</span><span style="color:#fff; font-weight:600;">192.168.0.245:16010</span></div>
+                        <div style="display:flex; justify-content:space-between;"><span>Version</span><span style="color:var(--accent-color); font-weight:700;">CHRISTOS v2.7.0 (Sonora Edition)</span></div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="triggerLibraryRescan()" style="width:100%;">
+                        Trigger Full Media Rescan
+                    </button>
                 </div>
             </div>
         </div>

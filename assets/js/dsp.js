@@ -13,6 +13,11 @@ const DSP = {
     filters: [],
     gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     
+    // Sonora Audio Normalization Engine (EBU R128 / LUFS Compressor)
+    sonoraNormalizerNode: null,
+    sonoraNormalizerEnabled: true,
+    sonoraTargetLufs: -14, // -14 LUFS Spotify/Sonora Standard
+    
     // Crossfeed Nodes
     crossfeedEnabled: false,
     crossfeedGain: null,
@@ -53,10 +58,16 @@ const DSP = {
         this.replayGainMode = localStorage.getItem('christos_replaygain_mode') || 'track';
         this.preampDb = parseFloat(localStorage.getItem('christos_replaygain_preamp') || '0.0');
         this.antiClipping = localStorage.getItem('christos_replaygain_anticlip') !== 'false';
+        this.sonoraNormalizerEnabled = localStorage.getItem('christos_sonora_normalization') !== 'false';
+        this.sonoraTargetLufs = parseFloat(localStorage.getItem('christos_sonora_lufs') || '-14');
 
         // Create ReplayGain GainNode
         this.replayGainNode = this.context.createGain();
         this.replayGainNode.gain.value = 1.0;
+
+        // Create Sonora Audio Normalizer DynamicsCompressor Node
+        this.sonoraNormalizerNode = this.context.createDynamicsCompressor();
+        this.configureSonoraNormalizer();
 
         // Create 10 Biquad Filters
         this.filters = [];
@@ -75,13 +86,41 @@ const DSP = {
             this.filters.push(filter);
         });
 
-        // Chain: input -> ReplayGainNode -> Filter[0] -> ... -> Filter[9] -> outputNode
+        // Chain: input -> ReplayGainNode -> SonoraNormalizer -> Filter[0] -> ... -> Filter[9] -> outputNode
         this.inputNode.connect(this.replayGainNode);
-        this.replayGainNode.connect(this.filters[0]);
+        this.replayGainNode.connect(this.sonoraNormalizerNode);
+        this.sonoraNormalizerNode.connect(this.filters[0]);
         for (let i = 0; i < this.filters.length - 1; i++) {
             this.filters[i].connect(this.filters[i + 1]);
         }
         this.filters[this.filters.length - 1].connect(this.outputNode);
+    },
+
+    configureSonoraNormalizer() {
+        if (!this.sonoraNormalizerNode || !this.context) return;
+        if (this.sonoraNormalizerEnabled) {
+            this.sonoraNormalizerNode.threshold.setTargetAtTime(this.sonoraTargetLufs, this.context.currentTime, 0.05);
+            this.sonoraNormalizerNode.knee.setTargetAtTime(24, this.context.currentTime, 0.05);
+            this.sonoraNormalizerNode.ratio.setTargetAtTime(3.0, this.context.currentTime, 0.05);
+            this.sonoraNormalizerNode.attack.setTargetAtTime(0.003, this.context.currentTime, 0.05);
+            this.sonoraNormalizerNode.release.setTargetAtTime(0.250, this.context.currentTime, 0.05);
+        } else {
+            // Bypass mode
+            this.sonoraNormalizerNode.threshold.setTargetAtTime(0, this.context.currentTime, 0.05);
+            this.sonoraNormalizerNode.ratio.setTargetAtTime(1.0, this.context.currentTime, 0.05);
+        }
+    },
+
+    toggleSonoraNormalization(enabled) {
+        this.sonoraNormalizerEnabled = enabled;
+        localStorage.setItem('christos_sonora_normalization', enabled);
+        this.configureSonoraNormalizer();
+    },
+
+    setSonoraTargetLufs(lufs) {
+        this.sonoraTargetLufs = parseFloat(lufs);
+        localStorage.setItem('christos_sonora_lufs', this.sonoraTargetLufs);
+        this.configureSonoraNormalizer();
     },
 
     setBandGain(index, gainDb) {
