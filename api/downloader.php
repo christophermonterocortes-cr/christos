@@ -91,13 +91,24 @@ try {
             // Clean log file
             file_put_contents($logFile, "[UNIVERSAL DOWNLOADER] Starting {$service} lossless download\n[TARGET]: {$targetDir}\n[QUALITY]: {$quality}\n[URL]: {$url}\n\n");
 
+            $filenameTemplate = trim($input['filename_template'] ?? '%(artist,uploader)s/%(album,title)s/%(playlist_index&{:02d} - |)s%(title)s.%(ext)s');
+            // Support simple macro syntax like {artist} - {title}
+            $customTpl = str_replace(
+                ['{artist}', '{title}', '{album}', '{tracknum}', '{year}'],
+                ['%(artist,uploader)s', '%(title)s', '%(album)s', '%(playlist_index&{:02d}|)s', '%(release_year,upload_date>%Y)s'],
+                $filenameTemplate
+            );
+            if (substr($customTpl, -6) !== '.%(ext)s' && substr($customTpl, -5) !== '.flac') {
+                $customTpl .= '.%(ext)s';
+            }
+
             // Build execution command
             $cmd = "";
             if ($service === 'apple' || stripos($url, 'music.apple.com') !== false) {
                 $cmd = "docker run --rm --network host -v " . escapeshellarg($targetDir) . ":/downloads ghcr.io/zhaarey/apple-music-downloader " . escapeshellarg($url);
             } else {
                 $ytdlp = file_exists('/usr/local/bin/yt-dlp') ? '/usr/local/bin/yt-dlp' : 'yt-dlp';
-                $outTemplate = escapeshellarg($targetDir . '/%(artist,uploader)s - %(album,title)s/%(playlist_index&{:02d} - |)s%(title)s.%(ext)s');
+                $outTemplate = escapeshellarg($targetDir . '/' . ltrim($customTpl, '/'));
                 $cmd = "{$ytdlp} --extract-audio --audio-format flac --audio-quality 0 --embed-thumbnail --embed-metadata -o {$outTemplate} " . escapeshellarg($url);
             }
 
@@ -110,6 +121,7 @@ try {
                 'url' => $url,
                 'service' => $service,
                 'quality' => $quality,
+                'template' => $filenameTemplate,
                 'started_at' => time()
             ]);
 

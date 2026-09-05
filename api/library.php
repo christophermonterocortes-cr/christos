@@ -246,40 +246,77 @@ try {
 
         case 'search':
             $q = trim($_GET['q'] ?? '');
+            $category = trim($_GET['category'] ?? 'all');
             if (empty($q)) {
-                echo json_encode(['artists' => [], 'albums' => [], 'tracks' => []]);
+                echo json_encode(['artists' => [], 'albums' => [], 'tracks' => [], 'lyrics' => []]);
                 break;
             }
             $term = "%{$q}%";
 
-            $stmtArtists = $db->prepare("SELECT id, name, art_path FROM artists WHERE name LIKE ? ORDER BY name ASC LIMIT 10");
-            $stmtArtists->execute([$term]);
+            $artists = [];
+            $albums = [];
+            $tracks = [];
+            $lyrics = [];
 
-            $stmtAlbums = $db->prepare("
-                SELECT a.id, a.title, a.art_path, ar.name AS artist 
-                FROM albums a 
-                JOIN artists ar ON a.artist_id = ar.id 
-                WHERE a.title LIKE ? 
-                ORDER BY a.title ASC 
-                LIMIT 10
-            ");
-            $stmtAlbums->execute([$term]);
+            if ($category === 'all' || $category === 'artists') {
+                $stmtArtists = $db->prepare("SELECT id, name, art_path FROM artists WHERE name LIKE ? ORDER BY name ASC LIMIT 15");
+                $stmtArtists->execute([$term]);
+                $artists = $stmtArtists->fetchAll();
+            }
 
-            $stmtTracks = $db->prepare("
-                SELECT t.id, t.title, t.duration, t.format, a.title AS album, ar.name AS artist, a.art_path AS album_art
-                FROM tracks t
-                JOIN albums a ON t.album_id = a.id
-                JOIN artists ar ON a.artist_id = ar.id
-                WHERE t.title LIKE ?
-                ORDER BY t.title ASC
-                LIMIT 20
-            ");
-            $stmtTracks->execute([$term]);
+            if ($category === 'all' || $category === 'albums') {
+                $stmtAlbums = $db->prepare("
+                    SELECT a.id, a.title, a.art_path, a.year, ar.name AS artist 
+                    FROM albums a 
+                    JOIN artists ar ON a.artist_id = ar.id 
+                    WHERE a.title LIKE ? 
+                    ORDER BY a.title ASC 
+                    LIMIT 15
+                ");
+                $stmtAlbums->execute([$term]);
+                $albums = $stmtAlbums->fetchAll();
+            }
+
+            if ($category === 'all' || $category === 'tracks' || $category === 'files') {
+                $stmtTracks = $db->prepare("
+                    SELECT t.id, t.title, t.duration, t.format, t.bit_depth, t.sample_rate, t.file_path, a.title AS album, ar.name AS artist, a.art_path AS album_art
+                    FROM tracks t
+                    JOIN albums a ON t.album_id = a.id
+                    JOIN artists ar ON a.artist_id = ar.id
+                    WHERE t.title LIKE ? OR t.file_path LIKE ?
+                    ORDER BY t.title ASC
+                    LIMIT 25
+                ");
+                $stmtTracks->execute([$term, $term]);
+                $tracks = $stmtTracks->fetchAll();
+            }
+
+            if ($category === 'all' || $category === 'lyrics') {
+                $stmtLyrics = $db->prepare("
+                    SELECT t.id, t.title, t.duration, t.format, a.title AS album, ar.name AS artist, a.art_path AS album_art, l.lrc_text
+                    FROM lyrics l
+                    JOIN tracks t ON l.track_id = t.id
+                    JOIN albums a ON t.album_id = a.id
+                    JOIN artists ar ON a.artist_id = ar.id
+                    WHERE l.lrc_text LIKE ?
+                    LIMIT 15
+                ");
+                $stmtLyrics->execute([$term]);
+                $rawLyrics = $stmtLyrics->fetchAll();
+                foreach ($rawLyrics as $lr) {
+                    $pos = stripos($lr['lrc_text'], $q);
+                    $snippet = substr($lr['lrc_text'], max(0, $pos - 30), 100);
+                    $lr['lyric_snippet'] = '...' . trim(preg_replace('/\[\d+:\d+(?:\.\d+)?\]/', '', $snippet)) . '...';
+                    unset($lr['lrc_text']);
+                    $lyrics[] = $lr;
+                }
+            }
 
             echo json_encode([
-                'artists' => $stmtArtists->fetchAll(),
-                'albums' => $stmtAlbums->fetchAll(),
-                'tracks' => $stmtTracks->fetchAll()
+                'artists' => $artists,
+                'albums' => $albums,
+                'tracks' => $tracks,
+                'lyrics' => $lyrics
             ]);
             break;
 
@@ -638,6 +675,224 @@ try {
                 $stmtIns->execute([$track_id, $lrc_text, $is_synced]);
             }
             echo json_encode(['success' => true]);
+            break;
+
+        /* ============================================================
+           NAMIDA ENGINE: HISTORY, SMART TRACKS & PLAYLISTS
+           ============================================================ */
+        case 'record_listen':
+            $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            $track_id = (int)($data['track_id'] ?? $_GET['track_id'] ?? 0);
+            if ($track_id > 0) {
+                $stmt = $db->prepare("INSERT INTO play_history (user_id, track_id, played_at) VALUES (1, ?, CURRENT_TIMESTAMP)");
+                $stmt->execute([$track_id]);
+                echo json_encode(['success' => true, 'track_id' => $track_id]);
+            } else {
+                echo json_encode(['error' => 'Invalid track_id']);
+            }
+            break;
+
+        case 'most_played':
+            $range = $_GET['range'] ?? 'all'; // all, 30days, 7days, year
+            $whereClause = "";
+            if ($range === '7days') $whereClause = " AND h.played_at >= datetime('now', '-7 days') ";
+            elseif ($range === '30days') $whereClause = " AND h.played_at >= datetime('now', '-30 days') ";
+            elseif ($range === 'year') $whereClause = " AND h.played_at >= datetime('now', '-365 days') ";
+
+            $limit = (int)($_GET['limit'] ?? 100);
+            $stmt = $db->prepare("
+                SELECT t.*, a.title AS album, a.art_path AS album_art, ar.name AS artist, COUNT(h.id) AS play_count,
+                       (SELECT 1 FROM favorites WHERE track_id = t.id AND user_id = 1) AS is_favorite
+                FROM play_history h
+                JOIN tracks t ON h.track_id = t.id
+                JOIN albums a ON t.album_id = a.id
+                JOIN artists ar ON a.artist_id = ar.id
+                WHERE 1=1 {$whereClause}
+                GROUP BY t.id
+                ORDER BY play_count DESC, t.title ASC
+                LIMIT {$limit}
+            ");
+            $stmt->execute();
+            $results = $stmt->fetchAll();
+            if (empty($results)) {
+                $fallbackStmt = $db->prepare("
+                    SELECT t.*, a.title AS album, a.art_path AS album_art, ar.name AS artist, 
+                           COALESCE(t.rating, 1) AS play_count,
+                           (SELECT 1 FROM favorites WHERE track_id = t.id AND user_id = 1) AS is_favorite
+                    FROM tracks t
+                    JOIN albums a ON t.album_id = a.id
+                    JOIN artists ar ON a.artist_id = ar.id
+                    ORDER BY t.rating DESC, t.id ASC
+                    LIMIT {$limit}
+                ");
+                $fallbackStmt->execute();
+                $results = $fallbackStmt->fetchAll();
+            }
+            echo json_encode($results);
+            break;
+
+        case 'lost_memories':
+            // Tracks played in the current month in past history
+            $stmt = $db->prepare("
+                SELECT t.*, a.title AS album, a.art_path AS album_art, ar.name AS artist, h.played_at,
+                       (SELECT 1 FROM favorites WHERE track_id = t.id AND user_id = 1) AS is_favorite
+                FROM play_history h
+                JOIN tracks t ON h.track_id = t.id
+                JOIN albums a ON t.album_id = a.id
+                JOIN artists ar ON a.artist_id = ar.id
+                WHERE strftime('%m', h.played_at) = strftime('%m', 'now')
+                GROUP BY t.id
+                ORDER BY h.played_at DESC
+                LIMIT 50
+            ");
+            $stmt->execute();
+            $results = $stmt->fetchAll();
+            // Fallback to recent history if no older monthly matches
+            if (empty($results)) {
+                $stmtRecent = $db->prepare("
+                    SELECT t.*, a.title AS album, a.art_path AS album_art, ar.name AS artist, h.played_at,
+                           (SELECT 1 FROM favorites WHERE track_id = t.id AND user_id = 1) AS is_favorite
+                    FROM play_history h
+                    JOIN tracks t ON h.track_id = t.id
+                    JOIN albums a ON t.album_id = a.id
+                    JOIN artists ar ON a.artist_id = ar.id
+                    GROUP BY t.id
+                    ORDER BY h.played_at DESC
+                    LIMIT 30
+                ");
+                $stmtRecent->execute();
+                $results = $stmtRecent->fetchAll();
+            }
+            if (empty($results)) {
+                $stmtRand = $db->prepare("
+                    SELECT t.*, a.title AS album, a.art_path AS album_art, ar.name AS artist, datetime('now', '-30 days') AS played_at,
+                           (SELECT 1 FROM favorites WHERE track_id = t.id AND user_id = 1) AS is_favorite
+                    FROM tracks t
+                    JOIN albums a ON t.album_id = a.id
+                    JOIN artists ar ON a.artist_id = ar.id
+                    ORDER BY RANDOM()
+                    LIMIT 30
+                ");
+                $stmtRand->execute();
+                $results = $stmtRand->fetchAll();
+            }
+            echo json_encode($results);
+            break;
+
+        case 'smart_radio':
+            $track_id = (int)($_GET['track_id'] ?? 0);
+            $targetArtist = '';
+            $targetYear = 0;
+            $targetAlbumId = 0;
+            if ($track_id > 0) {
+                $st = $db->prepare("SELECT t.album_id, a.year, ar.id AS artist_id, ar.name AS artist FROM tracks t JOIN albums a ON t.album_id = a.id JOIN artists ar ON a.artist_id = ar.id WHERE t.id = ?");
+                $st->execute([$track_id]);
+                $row = $st->fetch();
+                if ($row) {
+                    $targetArtist = $row['artist'];
+                    $targetYear = (int)$row['year'];
+                    $targetAlbumId = (int)$row['album_id'];
+                }
+            }
+
+            $params = [$track_id];
+            $sql = "
+                SELECT t.*, a.title AS album, a.art_path AS album_art, ar.name AS artist,
+                       (SELECT 1 FROM favorites WHERE track_id = t.id AND user_id = 1) AS is_favorite
+                FROM tracks t
+                JOIN albums a ON t.album_id = a.id
+                JOIN artists ar ON a.artist_id = ar.id
+                WHERE t.id != ?
+            ";
+            if ($targetYear > 1900) {
+                $sql .= " AND (ar.name = ? OR (a.year >= ? AND a.year <= ?) OR a.id = ?) ";
+                $params[] = $targetArtist;
+                $params[] = $targetYear - 3;
+                $params[] = $targetYear + 3;
+                $params[] = $targetAlbumId;
+            } else if (!empty($targetArtist)) {
+                $sql .= " AND (ar.name = ? OR a.id = ?) ";
+                $params[] = $targetArtist;
+                $params[] = $targetAlbumId;
+            }
+            $sql .= " ORDER BY RANDOM() LIMIT 40";
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+            echo json_encode($stmt->fetchAll());
+            break;
+
+        case 'export_m3u':
+            $playlist_id = (int)($_GET['playlist_id'] ?? 0);
+            if ($playlist_id <= 0) {
+                http_response_code(400);
+                echo "Invalid playlist_id";
+                break;
+            }
+            $stmt = $db->prepare("
+                SELECT p.name AS playlist_name, t.title, t.duration, t.file_path, ar.name AS artist, a.title AS album
+                FROM playlists p
+                JOIN playlist_tracks pt ON p.id = pt.playlist_id
+                JOIN tracks t ON pt.track_id = t.id
+                JOIN albums a ON t.album_id = a.id
+                JOIN artists ar ON a.artist_id = ar.id
+                WHERE p.id = ?
+                ORDER BY pt.position ASC
+            ");
+            $stmt->execute([$playlist_id]);
+            $tracks = $stmt->fetchAll();
+            $pName = count($tracks) > 0 ? $tracks[0]['playlist_name'] : 'playlist';
+
+            header('Content-Type: audio/x-mpegurl; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $pName) . '.m3u"');
+            echo "#EXTM3U\n";
+            echo "#PLAYLIST:{$pName}\n\n";
+            foreach ($tracks as $tr) {
+                $dur = (int)($tr['duration'] ?? -1);
+                echo "#EXTINF:{$dur},{$tr['artist']} - {$tr['title']}\n";
+                echo "{$tr['file_path']}\n\n";
+            }
+            exit;
+
+        case 'import_m3u':
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['error' => 'POST required']);
+                break;
+            }
+            $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            $name = trim($input['name'] ?? 'Imported Playlist');
+            $m3uContent = trim($input['content'] ?? '');
+
+            if (empty($m3uContent)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'M3U content required']);
+                break;
+            }
+
+            // Create playlist
+            $stmtP = $db->prepare("INSERT INTO playlists (name, user_id) VALUES (?, 1)");
+            $stmtP->execute([$name]);
+            $newPlaylistId = $db->lastInsertId();
+
+            $lines = explode("\n", $m3uContent);
+            $matched = 0;
+            $pos = 0;
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if (empty($line) || strpos($line, '#') === 0) continue;
+                $filename = basename(str_replace('\\', '/', $line));
+
+                // Find track by filename or path
+                $stTr = $db->prepare("SELECT id FROM tracks WHERE file_path LIKE ? OR file_path LIKE ? LIMIT 1");
+                $stTr->execute(["%{$filename}", "%" . str_replace('\\', '/', $line)]);
+                $tRow = $stTr->fetch();
+                if ($tRow) {
+                    $db->prepare("INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)")
+                       ->execute([$newPlaylistId, $tRow['id'], $pos++]);
+                    $matched++;
+                }
+            }
+            echo json_encode(['success' => true, 'playlist_id' => $newPlaylistId, 'imported_count' => $matched]);
             break;
 
         default:

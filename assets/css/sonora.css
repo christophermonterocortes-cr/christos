@@ -202,3 +202,40 @@
     opacity: 1;
     font-weight: 600;
 }
+
+
+/* Sonora Theme Overrides for Namida Components */
+[data-theme="sonora"] .batch-dock-inner {
+    background: rgba(14, 17, 23, 0.94);
+    border-color: rgba(16, 185, 129, 0.25);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="sonora"] .batch-count-badge {
+    background: #10b981;
+    color: #0b0f17;
+}
+
+[data-theme="sonora"] .leaderboard-row.selected {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+[data-theme="sonora"] .play-count-badge {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="sonora"] .filter-pill.active {
+    background: #10b981;
+    color: #0b0f17;
+    border-color: #10b981;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    font-weight: 700;
+}
+
+[data-theme="sonora"] .spotlight-tab.active {
+    background: #10b981;
+    color: #0b0f17;
+}

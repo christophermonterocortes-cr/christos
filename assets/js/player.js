@@ -148,9 +148,20 @@ const Player = {
     currentTrack: null,
 
     isShuffle: false,
-    repeatMode: 'off', // 'off', 'all', 'one'
+    repeatMode: 'off', // 'off', 'all', 'one', 'n_times'
+    repeatNTarget: 2,
+    repeatNCurrent: 0,
     isMuted: false,
     previousVolume: 0.8,
+
+    // Sleep Timer Engine
+    sleepTimerRemaining: null, // seconds
+    sleepTimerType: null, // 'minutes' or 'tracks'
+    sleepTimerTracksRemaining: 0,
+    sleepTimerInterval: null,
+
+    // History tracking
+    hasRecordedListen: false,
 
     lyrics: [],
     currentLyricIndex: -1,
@@ -186,6 +197,103 @@ const Player = {
         // Restore layout
         const savedLayout = localStorage.getItem('christos_fullscreen_layout') || 'split';
         this.changeFullscreenLayout(savedLayout);
+
+        // Restore saved session if available
+        this.restoreSavedSession();
+    },
+
+    restoreSavedSession() {
+        try {
+            const raw = localStorage.getItem('christos_saved_session');
+            if (raw) {
+                const sess = JSON.parse(raw);
+                if (sess && sess.queue && sess.queue.length > 0) {
+                    this.queue = sess.queue;
+                    this.queueIndex = Math.min(sess.queueIndex || 0, this.queue.length - 1);
+                    const track = this.queue[this.queueIndex];
+                    if (track) {
+                        this.currentTrack = track;
+                        this.updateMetadataUI(track);
+                        this.fetchLyrics(track.id);
+                        this.activeAudio.src = `/api/stream.php?id=${track.id}`;
+                        if (sess.time && sess.time > 0) {
+                            this.activeAudio.currentTime = sess.time;
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
+    },
+
+    saveSession() {
+        if (!this.currentTrack || this.queue.length === 0) return;
+        try {
+            const sess = {
+                queue: this.queue,
+                queueIndex: this.queueIndex,
+                trackId: this.currentTrack.id,
+                time: this.activeAudio ? this.activeAudio.currentTime : 0
+            };
+            localStorage.setItem('christos_saved_session', JSON.stringify(sess));
+        } catch (e) {}
+    },
+
+    startSleepTimer(type, value) {
+        this.cancelSleepTimer();
+        this.sleepTimerType = type;
+        if (type === 'minutes') {
+            this.sleepTimerRemaining = value * 60;
+            this.sleepTimerInterval = setInterval(() => this.tickSleepTimer(), 1000);
+        } else if (type === 'tracks') {
+            this.sleepTimerTracksRemaining = value;
+        }
+        this.updateSleepTimerUI();
+    },
+
+    cancelSleepTimer() {
+        if (this.sleepTimerInterval) clearInterval(this.sleepTimerInterval);
+        this.sleepTimerInterval = null;
+        this.sleepTimerRemaining = null;
+        this.sleepTimerType = null;
+        this.sleepTimerTracksRemaining = 0;
+        this.updateSleepTimerUI();
+    },
+
+    tickSleepTimer() {
+        if (this.sleepTimerRemaining === null) return;
+        this.sleepTimerRemaining--;
+        this.updateSleepTimerUI();
+
+        if (this.sleepTimerRemaining <= 5 && this.sleepTimerRemaining > 0) {
+            // Gentle 5-second fadeout
+            const targetVol = parseFloat(localStorage.getItem('christos_volume') || '0.8');
+            const ramp = (this.sleepTimerRemaining / 5) * targetVol;
+            this.setVolume(Math.max(0.01, ramp));
+        } else if (this.sleepTimerRemaining <= 0) {
+            this.cancelSleepTimer();
+            this.fadePause(0.5);
+            setTimeout(() => {
+                this.setVolume(parseFloat(localStorage.getItem('christos_volume') || '0.8'));
+            }, 600);
+        }
+    },
+
+    updateSleepTimerUI() {
+        const badges = document.querySelectorAll('.sleep-timer-badge');
+        const btns = document.querySelectorAll('.sleep-timer-btn');
+        if (this.sleepTimerType === 'minutes' && this.sleepTimerRemaining !== null) {
+            const mins = Math.floor(this.sleepTimerRemaining / 60);
+            const secs = this.sleepTimerRemaining % 60;
+            const str = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            badges.forEach(b => { b.textContent = str; b.style.display = 'inline-block'; });
+            btns.forEach(btn => btn.classList.add('active'));
+        } else if (this.sleepTimerType === 'tracks' && this.sleepTimerTracksRemaining > 0) {
+            badges.forEach(b => { b.textContent = `${this.sleepTimerTracksRemaining} trk`; b.style.display = 'inline-block'; });
+            btns.forEach(btn => btn.classList.add('active'));
+        } else {
+            badges.forEach(b => b.style.display = 'none');
+            btns.forEach(btn => btn.classList.remove('active'));
+        }
     },
 
     setupAudioContext() {
@@ -376,6 +484,7 @@ const Player = {
 
         this.currentTrack = track;
         this.hasScrobbledCurrent = false;
+        this.hasRecordedListen = false;
         this.updateMetadataUI(track);
 
         // Apply ReplayGain loudness normalization if DSP is ready
@@ -403,11 +512,12 @@ const Player = {
         this.activeAudio.currentTime = 0;
 
         try {
-            await this.activeAudio.play();
+            await this.fadePlay(0.15);
             if (typeof Visualizer !== 'undefined' && this.analyser) {
                 Visualizer.start(this.analyser);
             }
             this.updateMediaSession(track);
+            this.saveSession();
 
             // Trigger Now Playing scrobble (Last.fm & ListenBrainz)
             fetch(`/api/enrichment.php?action=scrobble_now_playing&track_id=${track.id}`, { method: 'POST' }).catch(() => {});
@@ -418,41 +528,45 @@ const Player = {
         this.preloadNext();
     },
 
-    updateMediaSession(track) {
-        if ('mediaSession' in navigator) {
-            const artUrl = '/api/library.php?action=art&album_id=' + (track.album_id || 0);
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: track.title || 'Lossless Stream',
-                artist: track.artist || 'Unknown Artist',
-                album: track.album || 'Hi-Fi Collection',
-                artwork: [
-                    { src: artUrl, sizes: '96x96', type: 'image/jpeg' },
-                    { src: artUrl, sizes: '256x256', type: 'image/jpeg' },
-                    { src: artUrl, sizes: '512x512', type: 'image/jpeg' }
-                ]
-            });
-            navigator.mediaSession.playbackState = 'playing';
-            navigator.mediaSession.setActionHandler('play', () => Player.togglePlay());
-            navigator.mediaSession.setActionHandler('pause', () => Player.togglePlay());
-            navigator.mediaSession.setActionHandler('previoustrack', () => Player.prev());
-            navigator.mediaSession.setActionHandler('nexttrack', () => Player.next());
-            navigator.mediaSession.setActionHandler('seekto', (details) => {
-                if (Player.activeAudio && details.seekTime !== undefined) {
-                    Player.activeAudio.currentTime = details.seekTime;
-                }
-            });
+    fadePlay(duration = 0.2) {
+        this.ensureAudioContext();
+        if (!this.activeAudio.src && this.queue.length > 0) {
+            this.playTrack(this.queue[this.queueIndex]);
+            return Promise.resolve();
         }
+        const targetVol = parseFloat(localStorage.getItem('christos_volume') || '0.8');
+        this.activeAudio.volume = 0;
+        return this.activeAudio.play().then(() => {
+            if (typeof Visualizer !== 'undefined' && this.analyser) {
+                Visualizer.start(this.analyser);
+            }
+            let start = performance.now();
+            let ramp = setInterval(() => {
+                let elapsed = (performance.now() - start) / (duration * 1000);
+                if (elapsed >= 1) {
+                    this.activeAudio.volume = targetVol;
+                    clearInterval(ramp);
+                } else {
+                    this.activeAudio.volume = Math.max(0, Math.min(targetVol, elapsed * targetVol));
+                }
+            }, 20);
+        });
     },
 
-    preloadNext() {
-        let nextIdx = this.queueIndex + 1;
-        if (this.isShuffle) {
-            nextIdx = Math.floor(Math.random() * this.queue.length);
-        }
-        if (this.queue[nextIdx]) {
-            this.inactiveAudio.src = `/api/stream.php?id=${this.queue[nextIdx].id}`;
-            this.inactiveAudio.load();
-        }
+    fadePause(duration = 0.2) {
+        if (!this.activeAudio || this.activeAudio.paused) return;
+        const currentVol = this.activeAudio.volume;
+        let start = performance.now();
+        let ramp = setInterval(() => {
+            let elapsed = (performance.now() - start) / (duration * 1000);
+            if (elapsed >= 1) {
+                this.activeAudio.pause();
+                this.activeAudio.volume = currentVol;
+                clearInterval(ramp);
+            } else {
+                this.activeAudio.volume = Math.max(0, (1 - elapsed) * currentVol);
+            }
+        }, 20);
     },
 
     togglePlay() {
@@ -463,13 +577,35 @@ const Player = {
         }
 
         if (this.activeAudio.paused) {
-            this.activeAudio.play();
-            if (typeof Visualizer !== 'undefined' && this.analyser) {
-                Visualizer.start(this.analyser);
-            }
+            this.fadePlay(0.2);
         } else {
-            this.activeAudio.pause();
+            this.fadePause(0.2);
         }
+    },
+
+    insertAfterCurrent(tracks) {
+        if (!tracks) return;
+        const arr = Array.isArray(tracks) ? tracks : [tracks];
+        if (this.queue.length === 0) {
+            this.setQueue(arr);
+            return;
+        }
+        const pos = this.queueIndex + 1;
+        this.queue.splice(pos, 0, ...arr);
+        this.preloadNext();
+        this.saveSession();
+    },
+
+    addToQueue(tracks) {
+        if (!tracks) return;
+        const arr = Array.isArray(tracks) ? tracks : [tracks];
+        if (this.queue.length === 0) {
+            this.setQueue(arr);
+            return;
+        }
+        this.queue.push(...arr);
+        this.preloadNext();
+        this.saveSession();
     },
 
     next() {
@@ -518,7 +654,27 @@ const Player = {
     },
 
     onTrackEnded() {
-        if (this.repeatMode === 'one') {
+        // Handle Sleep Timer by Tracks
+        if (this.sleepTimerType === 'tracks' && this.sleepTimerTracksRemaining > 0) {
+            this.sleepTimerTracksRemaining--;
+            this.updateSleepTimerUI();
+            if (this.sleepTimerTracksRemaining <= 0) {
+                this.cancelSleepTimer();
+                this.fadePause(0.5);
+                return;
+            }
+        }
+
+        // Handle Repeat for N times mode
+        if (this.repeatMode === 'n_times') {
+            if (this.repeatNCurrent < this.repeatNTarget - 1) {
+                this.repeatNCurrent++;
+                this.playTrack(this.queue[this.queueIndex]);
+                return;
+            } else {
+                this.repeatNCurrent = 0;
+            }
+        } else if (this.repeatMode === 'one') {
             this.playTrack(this.queue[this.queueIndex]);
             return;
         }
@@ -537,14 +693,16 @@ const Player = {
             this.inactiveAudio = temp;
 
             this.currentTrack = this.queue[this.queueIndex];
+            this.hasRecordedListen = false;
             this.updateMetadataUI(this.currentTrack);
             this.fetchLyrics(this.currentTrack.id);
 
-            this.activeAudio.play().then(() => {
+            this.fadePlay(0.2).then(() => {
                 if (typeof Visualizer !== 'undefined' && this.analyser) {
                     Visualizer.start(this.analyser);
                 }
                 this.updateMediaSession(this.currentTrack);
+                this.saveSession();
             }).catch(e => console.error("Gapless transition play error:", e));
 
             this.preloadNext();
@@ -576,6 +734,18 @@ const Player = {
         const fsTot = document.getElementById('fullscreen-total-time');
         if (fsCur) fsCur.textContent = this.formatTime(cur);
         if (fsTot) fsTot.textContent = this.formatTime(dur);
+
+        // Record listen history to database (Namida standard: 30 seconds or 50%)
+        if (!this.hasRecordedListen && this.currentTrack && dur >= 15) {
+            if (cur >= 30 || cur >= (dur * 0.5)) {
+                this.hasRecordedListen = true;
+                fetch('/api/library.php?action=record_listen', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ track_id: this.currentTrack.id })
+                }).catch(() => {});
+            }
+        }
 
         // Scrobble trigger (Last.fm & ListenBrainz standard: 50% duration or 240s)
         if (!this.hasScrobbledCurrent && this.currentTrack && dur >= 30) {
@@ -764,9 +934,25 @@ const Player = {
     },
 
     toggleRepeat() {
-        const modes = ['off', 'all', 'one'];
-        const nextIdx = (modes.indexOf(this.repeatMode) + 1) % modes.length;
-        this.repeatMode = modes[nextIdx];
+        const modes = ['off', 'all', 'one', '2x', '3x'];
+        let currentKey = this.repeatMode;
+        if (this.repeatMode === 'n_times') {
+            currentKey = this.repeatNTarget === 2 ? '2x' : '3x';
+        }
+        const nextIdx = (modes.indexOf(currentKey) + 1) % modes.length;
+        const nextMode = modes[nextIdx];
+
+        if (nextMode === '2x') {
+            this.repeatMode = 'n_times';
+            this.repeatNTarget = 2;
+            this.repeatNCurrent = 0;
+        } else if (nextMode === '3x') {
+            this.repeatMode = 'n_times';
+            this.repeatNTarget = 3;
+            this.repeatNCurrent = 0;
+        } else {
+            this.repeatMode = nextMode;
+        }
 
         document.querySelectorAll('#repeat-btn, #fs-repeat-btn').forEach(btn => {
             btn.classList.toggle('active', this.repeatMode !== 'off');
@@ -776,6 +962,9 @@ const Player = {
             } else if (this.repeatMode === 'all') {
                 btn.title = 'Repeat All Tracks';
                 btn.style.color = 'var(--accent-color)';
+            } else if (this.repeatMode === 'n_times') {
+                btn.title = `Repeat Track ${this.repeatNTarget}x`;
+                btn.style.color = 'var(--accent-secondary, #06b6d4)';
             } else {
                 btn.title = 'Repeat Off';
                 btn.style.color = '';

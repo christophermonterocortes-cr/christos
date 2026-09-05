@@ -158,6 +158,12 @@ async function loadView(view, param = null) {
         } else if (view === 'favorites') {
             updateSidebarActive('favorites');
             await renderFavoritesView();
+        } else if (view === 'most_played') {
+            updateSidebarActive('most_played');
+            await renderMostPlayedView(param || '30days');
+        } else if (view === 'lost_memories') {
+            updateSidebarActive('lost_memories');
+            await renderLostMemoriesView();
         } else if (view === 'settings') {
             updateSidebarActive('settings');
             renderSettingsView();
@@ -257,9 +263,14 @@ function renderCapsulesHtml(tracks) {
         const isFav = !!(track.is_favorite == 1 || track.is_favorite === true);
         const rgGain = (track.replaygain_track_gain !== null && track.replaygain_track_gain !== undefined) ? parseFloat(track.replaygain_track_gain) : null;
 
+        const isSel = (typeof selectedTracks !== 'undefined' && selectedTracks.has(track.id));
+
         html += `
-            <div class="capsule-card" onclick="playTrackFromCapsule(${idx})" title="${escapeHtml(track.title)} - ${escapeHtml(track.artist)}">
+            <div class="capsule-card ${isSel ? 'selected' : ''}" onclick="playTrackFromCapsule(${idx})" title="${escapeHtml(track.title)} - ${escapeHtml(track.artist)}">
                 <div class="capsule-art-wrap">
+                    <div class="capsule-select-indicator" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="track-select-checkbox" data-track-id="${track.id}" ${isSel ? 'checked' : ''} onchange="toggleTrackSelection(${track.id}, ${JSON.stringify(track).replace(/"/g, '&quot;')}, event)">
+                    </div>
                     <img class="capsule-art-img" src="${artUrl}" alt="${escapeHtml(track.title)}" loading="lazy" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
                     ${isFav ? `<div class="capsule-fav-indicator"><svg viewBox="0 0 24 24" width="12" height="12" fill="var(--accent-color)" stroke="var(--accent-color)" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>` : ''}
                     ${rating > 0 ? `<div class="capsule-rating-badge">★ ${rating}</div>` : ''}
@@ -1800,6 +1811,9 @@ function pollDownloaderStatus() {
    ============================================================ */
 let spotlightDebounce = null;
 
+let spotlightDebounce = null;
+let activeSpotlightCategory = 'all';
+
 function initSpotlightSearch() {
     let modal = document.getElementById('spotlight-modal');
     if (!modal) {
@@ -1813,11 +1827,20 @@ function initSpotlightSearch() {
             <div class="spotlight-card">
                 <div class="spotlight-input-wrap">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--text-secondary)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <input type="text" id="spotlight-search-input" class="spotlight-input" placeholder="Search tracks, albums, artists, movies, and series..." autocomplete="off">
+                    <input type="text" id="spotlight-search-input" class="spotlight-input" placeholder="Search tracks, lyrics, albums, artists, movies, series..." autocomplete="off">
                     <span style="font-size:0.75rem; background:rgba(255,255,255,0.1); padding:3px 8px; border-radius:6px; color:#aaa;">ESC</span>
                 </div>
+                <!-- Category Tabs -->
+                <div class="spotlight-tabs" style="display:flex; gap:6px; padding:10px 16px; border-bottom:1px solid var(--border-color); overflow-x:auto;">
+                    <button class="spotlight-tab active" data-cat="all" onclick="switchSpotlightTab('all')">All</button>
+                    <button class="spotlight-tab" data-cat="tracks" onclick="switchSpotlightTab('tracks')">Tracks</button>
+                    <button class="spotlight-tab" data-cat="lyrics" onclick="switchSpotlightTab('lyrics')">Lyrics</button>
+                    <button class="spotlight-tab" data-cat="artists" onclick="switchSpotlightTab('artists')">Artists</button>
+                    <button class="spotlight-tab" data-cat="albums" onclick="switchSpotlightTab('albums')">Albums</button>
+                    <button class="spotlight-tab" data-cat="movies" onclick="switchSpotlightTab('movies')">Movies & Series</button>
+                </div>
                 <div class="spotlight-results" id="spotlight-results-list">
-                    <div style="padding:20px; text-align:center; color:var(--text-secondary);">Type anything to start instant search</div>
+                    <div style="padding:24px; text-align:center; color:var(--text-secondary);">Type keywords to search across your lossless music library, lyrics, and cinema</div>
                 </div>
             </div>
         `;
@@ -1834,6 +1857,15 @@ function initSpotlightSearch() {
             });
         }
     }
+}
+
+function switchSpotlightTab(cat) {
+    activeSpotlightCategory = cat;
+    document.querySelectorAll('.spotlight-tab').forEach(b => {
+        b.classList.toggle('active', b.dataset.cat === cat);
+    });
+    const input = document.getElementById('spotlight-search-input');
+    if (input) executeSpotlightSearch(input.value.trim());
 }
 
 function openSpotlight() {
@@ -1858,38 +1890,93 @@ async function executeSpotlightSearch(query) {
     const list = document.getElementById('spotlight-results-list');
     if (!list) return;
     if (!query) {
-        list.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-secondary);">Type anything to start instant search</div>';
+        list.innerHTML = '<div style="padding:24px; text-align:center; color:var(--text-secondary);">Type keywords to search across your lossless music library, lyrics, and cinema</div>';
         return;
     }
 
     try {
-        const res = await fetch('/api/library.php?action=search&q=' + encodeURIComponent(query));
+        const res = await fetch(`/api/library.php?action=search&q=${encodeURIComponent(query)}&category=${activeSpotlightCategory}`);
         const data = await res.json();
 
         let html = '';
-        if (data.tracks && data.tracks.length > 0) {
-            html += '<div style="font-size:0.75rem; font-weight:700; color:var(--accent-color); padding:4px 12px;">TRACKS</div>';
-            data.tracks.slice(0, 8).forEach(t => {
+
+        // 1. Tracks
+        if (data.tracks && data.tracks.length > 0 && (activeSpotlightCategory === 'all' || activeSpotlightCategory === 'tracks')) {
+            html += '<div style="font-size:0.75rem; font-weight:700; color:var(--accent-color); padding:8px 12px 4px 12px; letter-spacing:0.5px;">TRACKS (' + data.tracks.length + ')</div>';
+            data.tracks.slice(0, 10).forEach(t => {
                 const art = '/api/library.php?action=art&album_id=' + t.album_id;
                 html += `
                     <div class="spotlight-item" onclick="closeSpotlight(); Player.setSingleTrack({id:${t.id}, title:'${escapeHtml(t.title)}', artist:'${escapeHtml(t.artist)}', album:'${escapeHtml(t.album)}', album_id:${t.album_id}})">
-                        <img src="${art}" style="width:36px; height:36px; border-radius:6px; object-fit:cover;" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
+                        <img src="${art}" style="width:38px; height:38px; border-radius:6px; object-fit:cover;" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
                         <div style="flex:1; min-width:0;">
                             <div style="font-weight:700; color:#fff; font-size:0.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t.title)}</div>
                             <div style="color:var(--text-secondary); font-size:0.78rem;">${escapeHtml(t.artist)} • ${escapeHtml(t.album)}</div>
+                        </div>
+                        <span style="font-size:0.75rem; color:#888;">${formatDuration(t.duration)}</span>
+                    </div>
+                `;
+            });
+        }
+
+        // 2. Lyrics Matched
+        if (data.lyrics_matches && data.lyrics_matches.length > 0 && (activeSpotlightCategory === 'all' || activeSpotlightCategory === 'lyrics')) {
+            html += '<div style="font-size:0.75rem; font-weight:700; color:#a29bfe; padding:8px 12px 4px 12px; letter-spacing:0.5px;">LYRICS MATCHES (' + data.lyrics_matches.length + ')</div>';
+            data.lyrics_matches.slice(0, 8).forEach(t => {
+                const art = '/api/library.php?action=art&album_id=' + t.album_id;
+                const matchLine = t.matched_line || '';
+                html += `
+                    <div class="spotlight-item" onclick="closeSpotlight(); Player.setSingleTrack({id:${t.id}, title:'${escapeHtml(t.title)}', artist:'${escapeHtml(t.artist)}', album:'${escapeHtml(t.album)}', album_id:${t.album_id}}); toggleLyrics();">
+                        <img src="${art}" style="width:38px; height:38px; border-radius:6px; object-fit:cover;" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:700; color:#fff; font-size:0.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t.title)}</div>
+                            <div style="color:var(--accent-color); font-size:0.76rem; font-style:italic; margin-top:2px;">“${escapeHtml(matchLine)}”</div>
                         </div>
                     </div>
                 `;
             });
         }
 
-        if (data.artists && data.artists.length > 0) {
-            html += '<div style="font-size:0.75rem; font-weight:700; color:#20bf6b; padding:8px 12px 4px 12px;">ARTISTS</div>';
+        // 3. Artists
+        if (data.artists && data.artists.length > 0 && (activeSpotlightCategory === 'all' || activeSpotlightCategory === 'artists')) {
+            html += '<div style="font-size:0.75rem; font-weight:700; color:#20bf6b; padding:8px 12px 4px 12px; letter-spacing:0.5px;">ARTISTS</div>';
             data.artists.slice(0, 4).forEach(ar => {
                 html += `
                     <div class="spotlight-item" onclick="closeSpotlight(); loadView('artists')">
-                        <div style="width:36px; height:36px; border-radius:50%; background:#2a2a36; display:flex; align-items:center; justify-content:center; color:#fff;">♪</div>
+                        <div style="width:38px; height:38px; border-radius:50%; background:#2a2a36; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold;">♪</div>
                         <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(ar.name)}</div>
+                    </div>
+                `;
+            });
+        }
+
+        // 4. Albums
+        if (data.albums && data.albums.length > 0 && (activeSpotlightCategory === 'all' || activeSpotlightCategory === 'albums')) {
+            html += '<div style="font-size:0.75rem; font-weight:700; color:#f39c12; padding:8px 12px 4px 12px; letter-spacing:0.5px;">ALBUMS</div>';
+            data.albums.slice(0, 4).forEach(al => {
+                const art = '/api/library.php?action=art&album_id=' + al.id;
+                html += `
+                    <div class="spotlight-item" onclick="closeSpotlight(); loadView('library')">
+                        <img src="${art}" style="width:38px; height:38px; border-radius:6px; object-fit:cover;" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(al.title)}</div>
+                            <div style="color:var(--text-secondary); font-size:0.78rem;">${escapeHtml(al.artist || '')} ${al.year ? '• ' + al.year : ''}</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // 5. Cinema & TV
+        if (data.movies && data.movies.length > 0 && (activeSpotlightCategory === 'all' || activeSpotlightCategory === 'movies')) {
+            html += '<div style="font-size:0.75rem; font-weight:700; color:#0984e3; padding:8px 12px 4px 12px; letter-spacing:0.5px;">MOVIES & TV</div>';
+            data.movies.slice(0, 4).forEach(m => {
+                html += `
+                    <div class="spotlight-item" onclick="closeSpotlight(); openTheaterModalWithVideo('${escapeHtml(m.title)}', '${m.quality || '4K'}', '${m.stream_url || ''}', ${JSON.stringify(m.subtitles || [])})">
+                        <div style="width:38px; height:38px; border-radius:6px; background:#1e272e; display:flex; align-items:center; justify-content:center; color:#fff;">🎬</div>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(m.title)}</div>
+                            <div style="color:var(--text-secondary); font-size:0.78rem;">Cinema 4K Atmos</div>
+                        </div>
                     </div>
                 `;
             });
@@ -1901,9 +1988,10 @@ async function executeSpotlightSearch(query) {
 
         list.innerHTML = html;
     } catch (e) {
-        list.innerHTML = '<div style="padding:20px; text-align:center; color:#fa233b;">Search error</div>';
+        list.innerHTML = '<div style="padding:20px; text-align:center; color:#fa233b;">Search error: ' + escapeHtml(e.message) + '</div>';
     }
 }
+
 
 /* ============================================================
    6. FILE BROWSER, PLAYLISTS & FAVORITES
@@ -2809,3 +2897,793 @@ window.escapeHtml = window.escapeHtml || function(str) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
 };
+
+
+/* ============================================================
+   SONORA & NAMIDA ENGINE: MULTI-SELECT, SLEEP TIMER, SMART RADIO,
+   MOST PLAYED, LOST MEMORIES, M3U PLAYLIST IMPORT/EXPORT & TOASTS
+   ============================================================ */
+
+// Global Multi-Track Selection Store
+window.selectedTracks = new Map();
+
+function showToast(message, type = 'info') {
+    let toast = document.getElementById('christos-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'christos-toast';
+        toast.className = 'christos-toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = `christos-toast active ${type}`;
+    if (window._toastTimer) clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => {
+        toast.classList.remove('active');
+    }, 3200);
+}
+
+function toggleTrackSelection(trackId, trackObj, event) {
+    if (event) event.stopPropagation();
+    if (selectedTracks.has(trackId)) {
+        selectedTracks.delete(trackId);
+    } else {
+        selectedTracks.set(trackId, trackObj);
+    }
+    updateTrackSelectionUI();
+}
+
+function selectAllTracks(trackList) {
+    if (!trackList || trackList.length === 0) return;
+    const allSelected = trackList.every(t => selectedTracks.has(t.id));
+    if (allSelected) {
+        trackList.forEach(t => selectedTracks.delete(t.id));
+    } else {
+        trackList.forEach(t => selectedTracks.set(t.id, t));
+    }
+    updateTrackSelectionUI();
+}
+
+function clearTrackSelection() {
+    selectedTracks.clear();
+    updateTrackSelectionUI();
+}
+
+function updateTrackSelectionUI() {
+    const count = selectedTracks.size;
+    let dock = document.getElementById('batch-action-bar');
+    if (!dock) {
+        dock = document.createElement('div');
+        dock.id = 'batch-action-bar';
+        dock.className = 'batch-action-bar';
+        document.body.appendChild(dock);
+    }
+
+    // Update checkboxes on screen
+    document.querySelectorAll('.track-select-checkbox').forEach(cb => {
+        const id = parseInt(cb.dataset.trackId, 10);
+        cb.checked = selectedTracks.has(id);
+    });
+
+    if (count > 0) {
+        dock.innerHTML = `
+            <div class="batch-dock-inner">
+                <div class="batch-dock-info">
+                    <span class="batch-count-badge">${count}</span>
+                    <span class="batch-text">${count === 1 ? '1 track selected' : count + ' tracks selected'}</span>
+                </div>
+                <div class="batch-dock-actions">
+                    <button class="btn btn-primary btn-sm" onclick="batchPlaySelected()" title="Play selected tracks immediately">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                        <span>Play Now</span>
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="batchAddToQueue()" title="Append selected tracks to active queue">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        <span>Add to Queue</span>
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="batchInsertNext()" title="Play next right after current track">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+                        <span>Play Next</span>
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="batchAddToPlaylist()" title="Add selected tracks to a playlist">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/></svg>
+                        <span>Add to Playlist</span>
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="batchExportM3U()" title="Export selection to M3U file">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Export M3U</span>
+                    </button>
+                    <button class="btn btn-secondary btn-sm btn-clear" onclick="clearTrackSelection()" title="Clear Selection">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            </div>
+        `;
+        dock.classList.add('active');
+    } else {
+        dock.classList.remove('active');
+    }
+}
+
+function batchPlaySelected() {
+    const list = Array.from(selectedTracks.values());
+    if (list.length === 0) return;
+    Player.setQueue(list, 0);
+    clearTrackSelection();
+    showToast(`Playing ${list.length} selected tracks`);
+}
+
+function batchAddToQueue() {
+    const list = Array.from(selectedTracks.values());
+    if (list.length === 0) return;
+    Player.addToQueue(list);
+    showToast(`Added ${list.length} tracks to queue`);
+    clearTrackSelection();
+}
+
+function batchInsertNext() {
+    const list = Array.from(selectedTracks.values());
+    if (list.length === 0) return;
+    Player.insertAfterCurrent(list);
+    showToast(`Inserted ${list.length} tracks to play next`);
+    clearTrackSelection();
+}
+
+async function batchAddToPlaylist() {
+    const list = Array.from(selectedTracks.values());
+    if (list.length === 0) return;
+
+    try {
+        const res = await fetch('/api/library.php?action=playlists');
+        const playlists = await res.json();
+
+        let modal = document.getElementById('playlist-picker-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'playlist-picker-modal';
+            modal.className = 'spotlight-modal active';
+            document.body.appendChild(modal);
+        } else {
+            modal.classList.add('active');
+        }
+
+        modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+
+        modal.innerHTML = `
+            <div class="spotlight-card" style="max-width:440px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border-color);">
+                    <h3 style="font-size:1.1rem; color:#fff; font-weight:700;">Add ${list.length} Tracks to Playlist</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('playlist-picker-modal').classList.remove('active')">✕</button>
+                </div>
+                <div style="padding:16px 20px; max-height:300px; overflow-y:auto;">
+                    <div style="margin-bottom:14px;">
+                        <input type="text" id="new-playlist-quick-name" class="form-control" placeholder="Create new playlist..." style="width:100%; margin-bottom:8px;">
+                        <button class="btn btn-primary btn-sm" style="width:100%;" onclick="createPlaylistAndAddSelected()">+ Create New & Add</button>
+                    </div>
+                    <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-bottom:8px; text-transform:uppercase;">Existing Playlists</div>
+                    ${playlists.map(p => `
+                        <div class="spotlight-item" onclick="addTracksToExistingPlaylist(${p.id}, '${escapeHtml(p.name)}')">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent-color)" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-weight:700; color:#fff;">${escapeHtml(p.name)}</div>
+                                <div style="font-size:0.76rem; color:var(--text-secondary);">${p.track_count || 0} tracks</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } catch (e) {
+        showToast('Error loading playlists: ' + e.message, 'error');
+    }
+}
+
+async function createPlaylistAndAddSelected() {
+    const input = document.getElementById('new-playlist-quick-name');
+    const name = input ? input.value.trim() : '';
+    if (!name) return;
+
+    try {
+        const res = await fetch('/api/library.php?action=create_playlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (data.success) {
+            await addTracksToExistingPlaylist(data.id, name);
+        }
+    } catch (e) {
+        showToast('Failed to create playlist', 'error');
+    }
+}
+
+async function addTracksToExistingPlaylist(playlistId, playlistName) {
+    const list = Array.from(selectedTracks.values());
+    let added = 0;
+    for (const t of list) {
+        try {
+            await fetch('/api/library.php?action=add_to_playlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playlist_id: playlistId, track_id: t.id })
+            });
+            added++;
+        } catch (e) {}
+    }
+    const modal = document.getElementById('playlist-picker-modal');
+    if (modal) modal.classList.remove('active');
+    clearTrackSelection();
+    showToast(`Added ${added} tracks to ${playlistName}`);
+}
+
+function batchExportM3U() {
+    const list = Array.from(selectedTracks.values());
+    if (list.length === 0) return;
+
+    let m3u = "#EXTM3U\n";
+    list.forEach(t => {
+        m3u += `#EXTINF:${Math.round(t.duration || 0)},${t.artist} - ${t.title}\n`;
+        m3u += `${t.file_path || ''}\n`;
+    });
+
+    const blob = new Blob([m3u], { type: 'audio/x-mpegurl;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `christos_selection_${list.length}_tracks.m3u8`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${list.length} tracks to M3U8`);
+}
+
+/* ============================================================
+   MOST PLAYED VIEW (SONORA/NAMIDA LEADERBOARD)
+   ============================================================ */
+async function renderMostPlayedView(range = '30days') {
+    const viewContainer = document.getElementById('content-view');
+    currentView = 'most_played';
+
+    try {
+        const res = await fetch(`/api/library.php?action=most_played&range=${range}&limit=100`);
+        const tracks = await res.json();
+        originalTrackList = tracks.slice();
+        currentTrackList = tracks.slice();
+
+        let totalDuration = 0;
+        let totalPlays = 0;
+        tracks.forEach(t => {
+            totalDuration += (t.duration || 0);
+            totalPlays += (t.play_count || 1);
+        });
+
+        const rangeLabels = {
+            'all': 'All Time',
+            'year': 'Past Year',
+            '30days': 'Past 30 Days',
+            '7days': 'Past 7 Days'
+        };
+
+        let html = `
+            <div class="view-header leaderboard-header" style="margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;">
+                    <div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:1.4rem;">🔥</span>
+                            <h2 style="margin:0;">Most Played Leaderboard</h2>
+                        </div>
+                        <p style="color:var(--text-secondary); margin-top:4px;">
+                            ${tracks.length} Top Tracks • ${totalPlays} Total Plays • ${formatDuration(totalDuration)}
+                        </p>
+                    </div>
+                    
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="Player.setQueue(currentTrackList, 0)">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                            <span>Play All</span>
+                        </button>
+                        <button class="btn btn-secondary" onclick="Player.toggleShuffle(); Player.setQueue(currentTrackList, 0)">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                            <span>Shuffle</span>
+                        </button>
+                        <button class="btn btn-secondary" onclick="selectAllTracks(currentTrackList)">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="9 11 12 14 22 4"/></svg>
+                            <span>Select All</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Range Switcher Filter Pills -->
+                <div class="range-pills" style="display:flex; gap:8px; margin-top:16px; border-bottom:1px solid var(--border-color); padding-bottom:12px;">
+                    ${['30days', '7days', 'year', 'all'].map(r => `
+                        <button class="filter-pill ${range === r ? 'active' : ''}" onclick="renderMostPlayedView('${r}')">
+                            ${rangeLabels[r]}
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        if (!tracks || tracks.length === 0) {
+            html += `
+                <div style="padding:60px; text-align:center; color:var(--text-secondary);">
+                    <h3>No Play History Recorded Yet</h3>
+                    <p style="margin-top:8px;">Start listening to songs in CHRISTOS and your leaderboard will automatically generate here.</p>
+                </div>
+            `;
+        } else {
+            html += '<div class="leaderboard-table">';
+            tracks.forEach((t, idx) => {
+                const rank = idx + 1;
+                const art = '/api/library.php?action=art&album_id=' + t.album_id;
+                const isSelected = selectedTracks.has(t.id);
+                const isFav = !!(t.is_favorite == 1 || t.is_favorite === true);
+                
+                let rankBadge = `<span class="rank-num">${rank}</span>`;
+                if (rank === 1) rankBadge = `<span class="rank-num rank-gold">🥇 1</span>`;
+                else if (rank === 2) rankBadge = `<span class="rank-num rank-silver">🥈 2</span>`;
+                else if (rank === 3) rankBadge = `<span class="rank-num rank-bronze">🥉 3</span>`;
+
+                html += `
+                    <div class="leaderboard-row ${isSelected ? 'selected' : ''}" onclick="Player.setQueue(currentTrackList, ${idx})">
+                        <div class="lb-col-select" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="track-select-checkbox" data-track-id="${t.id}" ${isSelected ? 'checked' : ''} onchange="toggleTrackSelection(${t.id}, ${JSON.stringify(t).replace(/"/g, '&quot;')}, event)">
+                        </div>
+                        <div class="lb-col-rank">${rankBadge}</div>
+                        <div class="lb-col-art">
+                            <img src="${art}" class="lb-art-img" onerror="this.onerror=null; this.src='assets/img/default-star.svg';" loading="lazy">
+                        </div>
+                        <div class="lb-col-info">
+                            <div class="lb-title">${escapeHtml(t.title)}</div>
+                            <div class="lb-subtitle">${escapeHtml(t.artist)} • ${escapeHtml(t.album)}</div>
+                        </div>
+                        <div class="lb-col-badge">
+                            <span class="play-count-badge">🔥 ${t.play_count || 1} ${t.play_count === 1 ? 'play' : 'plays'}</span>
+                        </div>
+                        <div class="lb-col-duration">${formatDuration(t.duration)}</div>
+                        <div class="lb-col-actions" onclick="event.stopPropagation()">
+                            <button class="ctrl-btn-small" onclick="openSmartRadioModal(${t.id})" title="Smart Radio Station">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49"/></svg>
+                            </button>
+                            <button class="ctrl-btn-small" onclick="Player.addToQueue([${JSON.stringify(t).replace(/"/g, '&quot;')}]); showToast('Added to queue');" title="Add to Queue">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </button>
+                            <button class="ctrl-btn-small" onclick="rateTrack(${t.id}, 5); this.classList.toggle('active');" title="Favorite">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="${isFav ? 'var(--accent-color)' : 'none'}" stroke="${isFav ? 'var(--accent-color)' : 'currentColor'}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+        viewContainer.innerHTML = html;
+        updateTrackSelectionUI();
+    } catch (e) {
+        viewContainer.innerHTML = '<div class="empty-state"><h3>Error loading Most Played</h3><p>' + escapeHtml(e.message) + '</p></div>';
+    }
+}
+
+/* ============================================================
+   LOST MEMORIES & FLASHBACK TIME MACHINE
+   ============================================================ */
+async function renderLostMemoriesView() {
+    const viewContainer = document.getElementById('content-view');
+    currentView = 'lost_memories';
+
+    try {
+        const res = await fetch('/api/library.php?action=lost_memories');
+        const tracks = await res.json();
+        originalTrackList = tracks.slice();
+        currentTrackList = tracks.slice();
+
+        const currentMonthName = new Date().toLocaleString('default', { month: 'long' });
+
+        let html = `
+            <div class="view-header" style="margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;">
+                    <div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:1.4rem;">⏳</span>
+                            <h2 style="margin:0;">Lost Memories • ${currentMonthName} Flashbacks</h2>
+                        </div>
+                        <p style="color:var(--text-secondary); margin-top:4px;">
+                            Rediscover ${tracks.length} nostalgic tracks from this month in history or long-forgotten gems
+                        </p>
+                    </div>
+                    
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn btn-primary" onclick="Player.setQueue(currentTrackList, 0)">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                            <span>Relive Memories</span>
+                        </button>
+                        <button class="btn btn-secondary" onclick="Player.toggleShuffle(); Player.setQueue(currentTrackList, 0)">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                            <span>Shuffle Flashback</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        if (!tracks || tracks.length === 0) {
+            html += `
+                <div style="padding:60px; text-align:center; color:var(--text-secondary);">
+                    <h3>No Flashback Records Found</h3>
+                    <p style="margin-top:8px;">Keep listening to your lossless collection to build historical memory archives.</p>
+                </div>
+            `;
+        } else {
+            html += '<div class="leaderboard-table">';
+            tracks.forEach((t, idx) => {
+                const art = '/api/library.php?action=art&album_id=' + t.album_id;
+                const isSelected = selectedTracks.has(t.id);
+                const playedAt = t.played_at ? new Date(t.played_at).toLocaleDateString() : 'Nostalgic Gem';
+
+                html += `
+                    <div class="leaderboard-row ${isSelected ? 'selected' : ''}" onclick="Player.setQueue(currentTrackList, ${idx})">
+                        <div class="lb-col-select" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="track-select-checkbox" data-track-id="${t.id}" ${isSelected ? 'checked' : ''} onchange="toggleTrackSelection(${t.id}, ${JSON.stringify(t).replace(/"/g, '&quot;')}, event)">
+                        </div>
+                        <div class="lb-col-art">
+                            <img src="${art}" class="lb-art-img" onerror="this.onerror=null; this.src='assets/img/default-star.svg';" loading="lazy">
+                        </div>
+                        <div class="lb-col-info">
+                            <div class="lb-title">${escapeHtml(t.title)}</div>
+                            <div class="lb-subtitle">${escapeHtml(t.artist)} • ${escapeHtml(t.album)}</div>
+                        </div>
+                        <div class="lb-col-badge">
+                            <span class="memory-tag" style="background:rgba(162,155,254,0.15); color:#a29bfe; font-size:0.75rem; padding:3px 8px; border-radius:6px;">🕒 ${playedAt}</span>
+                        </div>
+                        <div class="lb-col-duration">${formatDuration(t.duration)}</div>
+                        <div class="lb-col-actions" onclick="event.stopPropagation()">
+                            <button class="ctrl-btn-small" onclick="openSmartRadioModal(${t.id})" title="Smart Radio Station">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49"/></svg>
+                            </button>
+                            <button class="ctrl-btn-small" onclick="Player.addToQueue([${JSON.stringify(t).replace(/"/g, '&quot;')}]); showToast('Added to queue');" title="Add to Queue">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+        viewContainer.innerHTML = html;
+        updateTrackSelectionUI();
+    } catch (e) {
+        viewContainer.innerHTML = '<div class="empty-state"><h3>Error loading Lost Memories</h3><p>' + escapeHtml(e.message) + '</p></div>';
+    }
+}
+
+/* ============================================================
+   SMART TRACKS RADIO ENGINE
+   ============================================================ */
+async function openSmartRadioModal(seedTrackId = null) {
+    let targetTrack = null;
+    if (seedTrackId) {
+        targetTrack = currentTrackList.find(t => t.id == seedTrackId) || (Player.currentTrack && Player.currentTrack.id == seedTrackId ? Player.currentTrack : null);
+    } else if (Player.currentTrack) {
+        targetTrack = Player.currentTrack;
+        seedTrackId = targetTrack.id;
+    } else if (originalTrackList && originalTrackList.length > 0) {
+        targetTrack = originalTrackList[0];
+        seedTrackId = targetTrack.id;
+    }
+
+    let modal = document.getElementById('smart-radio-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'smart-radio-modal';
+        modal.className = 'spotlight-modal active';
+        document.body.appendChild(modal);
+    } else {
+        modal.classList.add('active');
+    }
+
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+
+    modal.innerHTML = `
+        <div class="spotlight-card" style="max-width:540px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border-color);">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+                    <h3 style="font-size:1.15rem; color:#fff; font-weight:700; margin:0;">Smart Radio & Endless Mix</h3>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('smart-radio-modal').classList.remove('active')">✕</button>
+            </div>
+            
+            <div style="padding:20px;">
+                ${targetTrack ? `
+                    <div style="display:flex; align-items:center; gap:14px; background:rgba(255,255,255,0.04); border:1px solid var(--border-color); padding:12px 16px; border-radius:10px; margin-bottom:18px;">
+                        <img src="/api/library.php?action=art&album_id=${targetTrack.album_id}" style="width:48px; height:48px; border-radius:8px; object-fit:cover;" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-size:0.75rem; color:var(--accent-color); font-weight:700; text-transform:uppercase;">Radio Seed Track</div>
+                            <div style="font-weight:700; color:#fff; font-size:0.95rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(targetTrack.title)}</div>
+                            <div style="color:var(--text-secondary); font-size:0.82rem;">${escapeHtml(targetTrack.artist)}</div>
+                        </div>
+                    </div>
+                ` : '<p style="color:var(--text-secondary); margin-bottom:16px;">Pick any song to anchor your personalized lossless radio station.</p>'}
+
+                <div id="radio-station-preview" style="text-align:center; padding:20px;">
+                    <div class="loading-spinner"><div class="spinner"></div><p style="margin-top:10px; color:#aaa;">Generating algorithmic lossless radio mix...</p></div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    try {
+        const res = await fetch(`/api/library.php?action=smart_radio&track_id=${seedTrackId || 0}`);
+        const radioTracks = await res.json();
+
+        const previewContainer = document.getElementById('radio-station-preview');
+        if (!previewContainer) return;
+
+        if (!radioTracks || radioTracks.length === 0) {
+            previewContainer.innerHTML = '<p style="color:var(--text-secondary);">Could not generate radio tracks. Rescan library or select another track.</p>';
+            return;
+        }
+
+        window._latestRadioTracks = radioTracks;
+
+        previewContainer.innerHTML = `
+            <div style="text-align:left; margin-bottom:16px;">
+                <div style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:8px;">Station Queue Preview (${radioTracks.length} tracks):</div>
+                <div style="max-height:220px; overflow-y:auto; border:1px solid var(--border-color); border-radius:8px; background:rgba(0,0,0,0.2);">
+                    ${radioTracks.slice(0, 15).map(rt => `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:0.84rem;">
+                            <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:75%;">
+                                <span style="font-weight:600; color:#fff;">${escapeHtml(rt.title)}</span>
+                                <span style="color:var(--text-secondary);"> - ${escapeHtml(rt.artist)}</span>
+                            </div>
+                            <span style="color:#888; font-size:0.75rem;">${formatDuration(rt.duration)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-primary" style="flex:1;" onclick="startSmartRadioNow()">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                    <span>Start Radio Station</span>
+                </button>
+                <button class="btn btn-secondary" style="flex:1;" onclick="appendSmartRadioToQueue()">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Append to Queue</span>
+                </button>
+            </div>
+        `;
+    } catch (e) {
+        const preview = document.getElementById('radio-station-preview');
+        if (preview) preview.innerHTML = '<p style="color:#fa233b;">Error loading radio mix: ' + escapeHtml(e.message) + '</p>';
+    }
+}
+
+function startSmartRadioNow() {
+    if (window._latestRadioTracks && window._latestRadioTracks.length > 0) {
+        Player.setQueue(window._latestRadioTracks, 0);
+        const modal = document.getElementById('smart-radio-modal');
+        if (modal) modal.classList.remove('active');
+        showToast(`Smart Radio Station started (${window._latestRadioTracks.length} tracks)`);
+    }
+}
+
+function appendSmartRadioToQueue() {
+    if (window._latestRadioTracks && window._latestRadioTracks.length > 0) {
+        Player.addToQueue(window._latestRadioTracks);
+        const modal = document.getElementById('smart-radio-modal');
+        if (modal) modal.classList.remove('active');
+        showToast(`Added ${window._latestRadioTracks.length} radio tracks to queue`);
+    }
+}
+
+/* ============================================================
+   SLEEP TIMER MODAL (MINUTES & TRACK COUNT WITH GENTLE FADE)
+   ============================================================ */
+function openSleepTimerModal() {
+    let modal = document.getElementById('sleep-timer-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'sleep-timer-modal';
+        modal.className = 'spotlight-modal active';
+        document.body.appendChild(modal);
+    } else {
+        modal.classList.add('active');
+    }
+
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+
+    const isRunning = (Player.sleepTimerType !== null);
+    let statusHtml = '';
+    if (isRunning) {
+        if (Player.sleepTimerType === 'minutes') {
+            const m = Math.floor((Player.sleepTimerRemaining || 0) / 60);
+            const s = (Player.sleepTimerRemaining || 0) % 60;
+            statusHtml = `
+                <div style="background:rgba(250,35,59,0.12); border:1px solid rgba(250,35,59,0.3); border-radius:8px; padding:12px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="color:var(--accent-color); font-weight:700; font-size:0.92rem;">⏱ Sleep Timer Active</div>
+                        <div style="color:#fff; font-size:1.15rem; font-weight:800; margin-top:2px;">${m}:${s < 10 ? '0' : ''}${s} remaining</div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="Player.cancelSleepTimer(); openSleepTimerModal(); showToast('Sleep timer canceled');">
+                        Turn Off Timer
+                    </button>
+                </div>
+            `;
+        } else if (Player.sleepTimerType === 'tracks') {
+            statusHtml = `
+                <div style="background:rgba(250,35,59,0.12); border:1px solid rgba(250,35,59,0.3); border-radius:8px; padding:12px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="color:var(--accent-color); font-weight:700; font-size:0.92rem;">⏱ Sleep Timer Active</div>
+                        <div style="color:#fff; font-size:1.15rem; font-weight:800; margin-top:2px;">${Player.sleepTimerTracksRemaining} tracks remaining</div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="Player.cancelSleepTimer(); openSleepTimerModal(); showToast('Sleep timer canceled');">
+                        Turn Off Timer
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    modal.innerHTML = `
+        <div class="spotlight-card" style="max-width:460px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border-color);">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <h3 style="font-size:1.15rem; color:#fff; font-weight:700; margin:0;">Sleep Timer & Gentle Fade</h3>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sleep-timer-modal').classList.remove('active')">✕</button>
+            </div>
+
+            <div style="padding:20px;">
+                ${statusHtml}
+
+                <div style="font-size:0.8rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; margin-bottom:10px; letter-spacing:0.5px;">By Duration (Minutes)</div>
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:18px;">
+                    <button class="btn btn-secondary" onclick="selectSleepTimer('minutes', 15)">15 Min</button>
+                    <button class="btn btn-secondary" onclick="selectSleepTimer('minutes', 30)">30 Min</button>
+                    <button class="btn btn-secondary" onclick="selectSleepTimer('minutes', 45)">45 Min</button>
+                    <button class="btn btn-secondary" onclick="selectSleepTimer('minutes', 60)">1 Hour</button>
+                    <button class="btn btn-secondary" onclick="selectSleepTimer('minutes', 90)">1.5 Hours</button>
+                    <button class="btn btn-secondary" onclick="selectSleepTimer('minutes', 120)">2 Hours</button>
+                </div>
+
+                <div style="display:flex; gap:8px; margin-bottom:20px;">
+                    <input type="number" id="custom-sleep-mins" class="form-control" placeholder="Custom minutes..." min="1" max="600" style="flex:1;">
+                    <button class="btn btn-primary" onclick="setCustomSleepMinutes()">Set Timer</button>
+                </div>
+
+                <div style="font-size:0.8rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; margin-bottom:10px; letter-spacing:0.5px;">By Track Count</div>
+                <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:16px;">
+                    <button class="btn btn-secondary" onclick="selectSleepTimer('tracks', 1)">1 Track</button>
+                    <button class="btn btn-secondary" onclick="selectSleepTimer('tracks', 2)">2 Tracks</button>
+                    <button class="btn btn-secondary" onclick="selectSleepTimer('tracks', 5)">5 Tracks</button>
+                    <button class="btn btn-secondary" onclick="selectSleepTimer('tracks', 10)">10 Tracks</button>
+                </div>
+
+                <div style="font-size:0.78rem; color:var(--text-secondary); line-height:1.4; border-top:1px solid var(--border-color); padding-top:12px;">
+                    ✨ <strong>Gentle Fadeout:</strong> Music volume gracefully ramps down over the final 5 seconds before pausing, ensuring you fall asleep smoothly without abrupt silence.
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function selectSleepTimer(type, value) {
+    Player.startSleepTimer(type, value);
+    const modal = document.getElementById('sleep-timer-modal');
+    if (modal) modal.classList.remove('active');
+    showToast(`Sleep timer set for ${value} ${type === 'minutes' ? 'minutes' : 'tracks'}`);
+}
+
+function setCustomSleepMinutes() {
+    const input = document.getElementById('custom-sleep-mins');
+    const val = parseInt(input ? input.value : 0, 10);
+    if (val > 0) {
+        selectSleepTimer('minutes', val);
+    }
+}
+
+/* ============================================================
+   M3U PLAYLIST IMPORT & EXPORT
+   ============================================================ */
+async function exportCurrentPlaylistM3u(playlistId, playlistName = 'playlist') {
+    if (!playlistId) return;
+    try {
+        const res = await fetch(`/api/library.php?action=export_m3u&playlist_id=${playlistId}`);
+        const text = await res.text();
+        const blob = new Blob([text], { type: 'audio/x-mpegurl;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${playlistName.replace(/[^a-zA-Z0-9_-]/g, '_')}.m3u8`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(`Exported ${playlistName} as M3U8`);
+    } catch (e) {
+        showToast('Failed to export playlist: ' + e.message, 'error');
+    }
+}
+
+function openImportM3uModal() {
+    let modal = document.getElementById('import-m3u-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'import-m3u-modal';
+        modal.className = 'spotlight-modal active';
+        document.body.appendChild(modal);
+    } else {
+        modal.classList.add('active');
+    }
+
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+
+    modal.innerHTML = `
+        <div class="spotlight-card" style="max-width:480px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border-color);">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent-color)" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <h3 style="font-size:1.15rem; color:#fff; font-weight:700; margin:0;">Import M3U / M3U8 Playlist</h3>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-m3u-modal').classList.remove('active')">✕</button>
+            </div>
+
+            <div style="padding:20px;">
+                <div style="margin-bottom:14px;">
+                    <label style="font-size:0.85rem; color:var(--text-secondary); display:block; margin-bottom:6px;">Playlist Name (Optional)</label>
+                    <input type="text" id="import-playlist-name" class="form-control" placeholder="Leave empty to use file name...">
+                </div>
+
+                <div style="margin-bottom:18px;">
+                    <label style="font-size:0.85rem; color:var(--text-secondary); display:block; margin-bottom:6px;">Select .m3u / .m3u8 file</label>
+                    <input type="file" id="m3u-file-input" accept=".m3u,.m3u8" class="form-control" style="padding:8px;">
+                </div>
+
+                <button class="btn btn-primary" style="width:100%;" onclick="submitImportM3u()">
+                    Import Playlist to Library
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function submitImportM3u() {
+    const fileInput = document.getElementById('m3u-file-input');
+    const nameInput = document.getElementById('import-playlist-name');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        showToast('Please select an M3U file', 'error');
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const playlistName = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : file.name.replace(/\.[^/.]+$/, "");
+
+    try {
+        const text = await file.text();
+        const res = await fetch('/api/library.php?action=import_m3u', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: playlistName,
+                m3u_content: text
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const modal = document.getElementById('import-m3u-modal');
+            if (modal) modal.classList.remove('active');
+            showToast(`Imported playlist "${playlistName}" (${data.imported_tracks || 0} tracks matched)`);
+            if (currentView === 'playlists') loadView('playlists');
+        } else {
+            showToast('Error: ' + (data.error || 'Import failed'), 'error');
+        }
+    } catch (e) {
+        showToast('Import error: ' + e.message, 'error');
+    }
+}

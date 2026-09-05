@@ -80,6 +80,14 @@
                         <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                         <span>Favorites</span>
                     </li>
+                    <li data-view="most_played" onclick="loadView('most_played')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <span>Most Played</span>
+                    </li>
+                    <li data-view="lost_memories" onclick="loadView('lost_memories')">
+                        <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 8 14"/></svg>
+                        <span>Lost Memories</span>
+                    </li>
                 </ul>
 
                 <div class="nav-section-label">MEDIA & CINEMA</div>
@@ -167,6 +175,17 @@
             </div>
             
             <div id="player-settings">
+                <!-- Smart Radio Button -->
+                <button class="ctrl-btn" onclick="openSmartRadioModal()" title="Smart Radio & Related Tracks">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+                </button>
+
+                <!-- Sleep Timer Button -->
+                <button id="sleep-timer-btn" class="ctrl-btn sleep-timer-btn" onclick="openSleepTimerModal()" title="Sleep Timer (T)" style="position:relative;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span id="sleep-timer-badge" class="sleep-timer-badge" style="display:none; position:absolute; top:-4px; right:-6px; background:var(--accent-color); color:#000; font-size:0.62rem; font-weight:800; padding:1px 4px; border-radius:6px;"></span>
+                </button>
+
                 <!-- Audiophile DSP Equalizer Button -->
                 <button class="ctrl-btn" onclick="DSP.openModal()" title="Audiophile DSP & Equalizer Studio (E)">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-color)" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
