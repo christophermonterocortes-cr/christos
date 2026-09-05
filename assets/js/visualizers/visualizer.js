@@ -209,14 +209,17 @@ const Visualizer = {
 
     clearCanvasWithBackground(ctx, W, H) {
         ctx.clearRect(0, 0, W, H);
-        const grad = ctx.createRadialGradient(W / 2, H * 0.55, 20, W / 2, H * 0.55, Math.max(W, H) * 0.75);
-        grad.addColorStop(0, '#131526');
-        grad.addColorStop(1, '#07080f');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, W, H);
+        if (document.body.classList.contains('fullscreen-active') || document.getElementById('fullscreen-view')?.classList.contains('active')) {
+            const grad = ctx.createRadialGradient(W / 2, H * 0.55, 20, W / 2, H * 0.55, Math.max(W, H) * 0.75);
+            grad.addColorStop(0, '#131526');
+            grad.addColorStop(1, '#07080f');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+        }
     },
 
     applyTopFadeout(ctx, W, H) {
+        if (!document.body.classList.contains('fullscreen-active')) return;
         ctx.shadowBlur = 0;
         const fadeH = Math.round(H * 0.35);
         const fade = ctx.createLinearGradient(0, 0, 0, fadeH);
