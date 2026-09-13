@@ -246,4 +246,3 @@ if ($isCli) {
 } else {
     echo json_encode($stats);
 }
-?>

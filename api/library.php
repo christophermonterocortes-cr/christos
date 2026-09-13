@@ -248,7 +248,7 @@ try {
             $q = trim($_GET['q'] ?? '');
             $category = trim($_GET['category'] ?? 'all');
             if (empty($q)) {
-                echo json_encode(['artists' => [], 'albums' => [], 'tracks' => [], 'lyrics' => []]);
+                echo json_encode(['artists' => [], 'albums' => [], 'tracks' => [], 'lyrics' => [], 'lyrics_matches' => [], 'movies' => [], 'tvshows' => []]);
                 break;
             }
             $term = "%{$q}%";
@@ -257,6 +257,8 @@ try {
             $albums = [];
             $tracks = [];
             $lyrics = [];
+            $movies = [];
+            $tvshows = [];
 
             if ($category === 'all' || $category === 'artists') {
                 $stmtArtists = $db->prepare("SELECT id, name, art_path FROM artists WHERE name LIKE ? ORDER BY name ASC LIMIT 15");
@@ -279,7 +281,7 @@ try {
 
             if ($category === 'all' || $category === 'tracks' || $category === 'files') {
                 $stmtTracks = $db->prepare("
-                    SELECT t.id, t.title, t.duration, t.format, t.bit_depth, t.sample_rate, t.file_path, a.title AS album, ar.name AS artist, a.art_path AS album_art
+                    SELECT t.id, t.title, t.duration, t.format, t.bit_depth, t.sample_rate, t.file_path, a.title AS album, ar.name AS artist, a.art_path AS album_art, a.id AS album_id
                     FROM tracks t
                     JOIN albums a ON t.album_id = a.id
                     JOIN artists ar ON a.artist_id = ar.id
@@ -293,7 +295,7 @@ try {
 
             if ($category === 'all' || $category === 'lyrics') {
                 $stmtLyrics = $db->prepare("
-                    SELECT t.id, t.title, t.duration, t.format, a.title AS album, ar.name AS artist, a.art_path AS album_art, l.lrc_text
+                    SELECT t.id, t.title, t.duration, t.format, a.title AS album, a.id AS album_id, ar.name AS artist, a.art_path AS album_art, l.lrc_text
                     FROM lyrics l
                     JOIN tracks t ON l.track_id = t.id
                     JOIN albums a ON t.album_id = a.id
@@ -306,9 +308,60 @@ try {
                 foreach ($rawLyrics as $lr) {
                     $pos = stripos($lr['lrc_text'], $q);
                     $snippet = substr($lr['lrc_text'], max(0, $pos - 30), 100);
-                    $lr['lyric_snippet'] = '...' . trim(preg_replace('/\[\d+:\d+(?:\.\d+)?\]/', '', $snippet)) . '...';
+                    $cleanSnippet = trim(preg_replace('/\[\d+:\d+(?:\.\d+)?\]/', '', $snippet));
+                    $lr['lyric_snippet'] = '...' . $cleanSnippet . '...';
+                    $lr['matched_line'] = $cleanSnippet;
                     unset($lr['lrc_text']);
                     $lyrics[] = $lr;
+                }
+            }
+
+            if ($category === 'all' || $category === 'movies' || $category === 'cinema') {
+                $moviesCacheFile = (is_dir('/data') ? '/data/movies_cache.json' : sys_get_temp_dir() . '/movies_cache.json');
+                if (file_exists($moviesCacheFile)) {
+                    $mList = json_decode(@file_get_contents($moviesCacheFile), true);
+                    if (is_array($mList)) {
+                        $mCount = 0;
+                        foreach ($mList as $m) {
+                            if ($mCount >= 10) break;
+                            if (stripos($m['title'] ?? '', $q) !== false || stripos($m['filename'] ?? '', $q) !== false) {
+                                $movies[] = [
+                                    'id' => $m['id'] ?? 0,
+                                    'title' => $m['title'] ?? 'Movie',
+                                    'year' => $m['year'] ?? '',
+                                    'quality' => $m['quality'] ?? '4K Atmos',
+                                    'poster' => $m['poster'] ?? '',
+                                    'backdrop' => $m['backdrop'] ?? '',
+                                    'file_path' => $m['file_path'] ?? '',
+                                    'stream_url' => '/api/movies.php?action=stream&file=' . urlencode($m['file_path'] ?? ''),
+                                    'subtitles' => $m['subtitles'] ?? []
+                                ];
+                                $mCount++;
+                            }
+                        }
+                    }
+                }
+
+                $tvCacheFile = (is_dir('/data') ? '/data/tv_cache.json' : sys_get_temp_dir() . '/tv_cache.json');
+                if (file_exists($tvCacheFile)) {
+                    $tvList = json_decode(@file_get_contents($tvCacheFile), true);
+                    if (is_array($tvList)) {
+                        $tvCount = 0;
+                        foreach ($tvList as $tvFolder => $tvShow) {
+                            if ($tvCount >= 8) break;
+                            $showTitle = $tvShow['title'] ?? $tvFolder;
+                            if (stripos($showTitle, $q) !== false) {
+                                $tvshows[] = [
+                                    'title' => $showTitle,
+                                    'year' => $tvShow['year'] ?? '',
+                                    'rating' => $tvShow['rating'] ?? '',
+                                    'poster' => $tvShow['poster'] ?? '',
+                                    'overview' => $tvShow['overview'] ?? ''
+                                ];
+                                $tvCount++;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -316,7 +369,10 @@ try {
                 'artists' => $artists,
                 'albums' => $albums,
                 'tracks' => $tracks,
-                'lyrics' => $lyrics
+                'lyrics' => $lyrics,
+                'lyrics_matches' => $lyrics,
+                'movies' => $movies,
+                'tvshows' => $tvshows
             ]);
             break;
 
@@ -1002,4 +1058,3 @@ function serveArtwork() {
     echo '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><defs><radialGradient id="discShine" cx="50%" cy="50%" r="50%" fx="30%" fy="30%"><stop offset="0%" stop-color="#242634"/><stop offset="40%" stop-color="#12131a"/><stop offset="70%" stop-color="#181a24"/><stop offset="100%" stop-color="#0a0a0f"/></radialGradient><radialGradient id="centerHub" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fa233b"/><stop offset="70%" stop-color="#b81024"/><stop offset="100%" stop-color="#800a18"/></radialGradient></defs><rect width="512" height="512" fill="#0d0e14" rx="28"/><circle cx="256" cy="256" r="230" fill="url(#discShine)" stroke="rgba(255,255,255,0.06)" stroke-width="2"/><circle cx="256" cy="256" r="215" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1.5"/><circle cx="256" cy="256" r="200" fill="none" stroke="rgba(0,0,0,0.4)" stroke-width="1.5"/><circle cx="256" cy="256" r="185" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1.5"/><circle cx="256" cy="256" r="170" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="1.5"/><circle cx="256" cy="256" r="155" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1.5"/><circle cx="256" cy="256" r="140" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="1.5"/><circle cx="256" cy="256" r="125" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1.5"/><circle cx="256" cy="256" r="110" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="1.5"/><circle cx="256" cy="256" r="92" fill="#14151f" stroke="rgba(255,255,255,0.12)" stroke-width="2"/><circle cx="256" cy="256" r="88" fill="url(#centerHub)" opacity="0.95"/><circle cx="256" cy="256" r="46" fill="#0d0e14" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/><rect x="232" y="244" width="4" height="24" rx="2" fill="#ffffff"/><rect x="240" y="236" width="4" height="40" rx="2" fill="#ffffff"/><rect x="248" y="228" width="4" height="56" rx="2" fill="#ffffff"/><rect x="256" y="220" width="4" height="72" rx="2" fill="#ffffff"/><rect x="264" y="228" width="4" height="56" rx="2" fill="#ffffff"/><rect x="272" y="236" width="4" height="40" rx="2" fill="#ffffff"/><rect x="280" y="244" width="4" height="24" rx="2" fill="#ffffff"/><circle cx="256" cy="256" r="10" fill="#050608" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/></svg>';
     exit;
 }
-?>

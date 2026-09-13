@@ -85,4 +85,3 @@ define('UNIVERSAL_DOWNLOADS_PATH', getenv('UNIVERSAL_DOWNLOADS_PATH') ?: '/mnt/D
 // Security & Sessions
 define('SESSION_SECRET', getenv('SESSION_SECRET') ?: 'christos_hifi_production_secret_key_2026');
 define('APP_VERSION', '3.0.0');
-?>

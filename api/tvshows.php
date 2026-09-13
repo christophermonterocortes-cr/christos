@@ -782,4 +782,3 @@ function serveDefaultTvPoster() {
     echo '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="#181828"/><rect x="25" y="25" width="250" height="400" rx="10" fill="none" stroke="#2a2a3e" stroke-width="2"/><polygon points="135,210 135,255 175,232" fill="#20bf6b"/><text x="150" y="290" fill="#8888aa" font-size="18" font-family="sans-serif" text-anchor="middle" font-weight="bold">TV SERIES</text></svg>';
     exit;
 }
-?>

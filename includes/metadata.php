@@ -633,4 +633,3 @@ class AudioMetadata {
         return implode("\n", $lrcLines);
     }
 }
-?>

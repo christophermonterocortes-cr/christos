@@ -2136,7 +2136,33 @@ function initSpotlightSearch() {
                 spotlightDebounce = setTimeout(() => executeSpotlightSearch(e.target.value.trim()), 200);
             });
             input.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') closeSpotlight();
+                const modalEl = document.getElementById('spotlight-modal');
+                const items = modalEl ? modalEl.querySelectorAll('.spotlight-item') : [];
+                if (e.key === 'Escape') {
+                    closeSpotlight();
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (!items || items.length === 0) return;
+                    let currentIdx = Array.from(items).findIndex(it => it.classList.contains('active-hover'));
+                    let nextIdx = (currentIdx + 1) % items.length;
+                    items.forEach((it, idx) => it.classList.toggle('active-hover', idx === nextIdx));
+                    items[nextIdx].scrollIntoView({ block: 'nearest' });
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (!items || items.length === 0) return;
+                    let currentIdx = Array.from(items).findIndex(it => it.classList.contains('active-hover'));
+                    let prevIdx = (currentIdx - 1 + items.length) % items.length;
+                    items.forEach((it, idx) => it.classList.toggle('active-hover', idx === prevIdx));
+                    items[prevIdx].scrollIntoView({ block: 'nearest' });
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const activeItem = modalEl ? modalEl.querySelector('.spotlight-item.active-hover') : null;
+                    if (activeItem) {
+                        activeItem.click();
+                    } else if (items.length > 0) {
+                        items[0].click();
+                    }
+                }
             });
         }
     }
@@ -2290,12 +2316,14 @@ async function executeSpotlightSearch(query) {
         if (data.artists && data.artists.length > 0 && (activeSpotlightCategory === 'all' || activeSpotlightCategory === 'artists')) {
             html += '<div style="font-size:0.75rem; font-weight:700; color:#20bf6b; padding:8px 12px 4px 12px; letter-spacing:0.5px;">ARTISTS</div>';
             data.artists.slice(0, 4).forEach(ar => {
+                const art = ar.art_path || 'assets/img/default-artist.svg';
                 html += `
-                    <div class="spotlight-item" onclick="closeSpotlight(); loadView('artists')">
-                        <div style="width:38px; height:38px; border-radius:50%; background:#2a2a36; display:flex; align-items:center; justify-content:center; color:#fff;">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                    <div class="spotlight-item" onclick="closeSpotlight(); openArtistDetail(${ar.id}, '${escapeHtml(ar.name)}')">
+                        <img src="${art}" style="width:38px; height:38px; border-radius:50%; object-fit:cover;" onerror="this.onerror=null; this.src='assets/img/default-artist.svg';">
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(ar.name)}</div>
+                            <div style="color:var(--text-secondary); font-size:0.78rem;">Lossless Artist</div>
                         </div>
-                        <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(ar.name)}</div>
                     </div>
                 `;
             });
@@ -2307,7 +2335,7 @@ async function executeSpotlightSearch(query) {
             data.albums.slice(0, 4).forEach(al => {
                 const art = '/api/library.php?action=art&album_id=' + al.id;
                 html += `
-                    <div class="spotlight-item" onclick="closeSpotlight(); loadView('library')">
+                    <div class="spotlight-item" onclick="closeSpotlight(); playAlbumById(${al.id})">
                         <img src="${art}" style="width:38px; height:38px; border-radius:6px; object-fit:cover;" onerror="this.onerror=null; this.src='assets/img/default-star.svg';">
                         <div style="flex:1; min-width:0;">
                             <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(al.title)}</div>
@@ -2320,16 +2348,35 @@ async function executeSpotlightSearch(query) {
 
         // 5. Cinema & TV
         if (data.movies && data.movies.length > 0 && (activeSpotlightCategory === 'all' || activeSpotlightCategory === 'movies')) {
-            html += '<div style="font-size:0.75rem; font-weight:700; color:#0984e3; padding:8px 12px 4px 12px; letter-spacing:0.5px;">MOVIES & TV</div>';
-            data.movies.slice(0, 4).forEach(m => {
+            html += '<div style="font-size:0.75rem; font-weight:700; color:#0984e3; padding:8px 12px 4px 12px; letter-spacing:0.5px;">MOVIES</div>';
+            data.movies.slice(0, 6).forEach(m => {
+                const posterUrl = m.poster || '';
                 html += `
-                    <div class="spotlight-item" onclick="closeSpotlight(); openTheaterModalWithVideo('${escapeHtml(m.title)}', '${m.quality || '4K'}', '${m.stream_url || ''}', ${JSON.stringify(m.subtitles || [])})">
-                        <div style="width:38px; height:38px; border-radius:6px; background:#1e272e; display:flex; align-items:center; justify-content:center; color:#fff;">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
+                    <div class="spotlight-item" onclick="closeSpotlight(); openTheaterModalWithVideo('${escapeHtml(m.title)}', '${m.quality || '4K'}', '${m.stream_url || ''}', ${JSON.stringify(m.subtitles || [])}, null, null, '${encodeURIComponent(m.file_path || '')}', 'movie')">
+                        <div style="width:38px; height:38px; border-radius:6px; background:#1e272e; display:flex; align-items:center; justify-content:center; color:#fff; overflow:hidden;">
+                            ${posterUrl ? `<img src="${posterUrl}" style="width:100%; height:100%; object-fit:cover;">` : `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>`}
                         </div>
                         <div style="flex:1; min-width:0;">
                             <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(m.title)}</div>
-                            <div style="color:var(--text-secondary); font-size:0.78rem;">Cinema 4K Atmos</div>
+                            <div style="color:var(--text-secondary); font-size:0.78rem;">${m.year ? m.year + ' • ' : ''}${m.quality || 'Cinema 4K Atmos'}</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        if (data.tvshows && data.tvshows.length > 0 && (activeSpotlightCategory === 'all' || activeSpotlightCategory === 'movies')) {
+            html += '<div style="font-size:0.75rem; font-weight:700; color:#e056fd; padding:8px 12px 4px 12px; letter-spacing:0.5px;">TV SERIES</div>';
+            data.tvshows.slice(0, 4).forEach(tv => {
+                const posterUrl = tv.poster || '';
+                html += `
+                    <div class="spotlight-item" onclick="closeSpotlight(); openTvSeriesDetail('${escapeHtml(tv.title)}')">
+                        <div style="width:38px; height:38px; border-radius:6px; background:#1e272e; display:flex; align-items:center; justify-content:center; color:#fff; overflow:hidden;">
+                            ${posterUrl ? `<img src="${posterUrl}" style="width:100%; height:100%; object-fit:cover;">` : `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>`}
+                        </div>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(tv.title)}</div>
+                            <div style="color:var(--text-secondary); font-size:0.78rem;">${tv.year ? tv.year + ' • ' : ''}TV Series ${tv.rating ? '★ ' + tv.rating : ''}</div>
                         </div>
                     </div>
                 `;
@@ -2357,6 +2404,23 @@ async function executeSpotlightSearch(query) {
         list.innerHTML = '<div style="padding:20px; text-align:center; color:#fa233b;">Search error: ' + escapeHtml(e.message) + '</div>';
     }
 }
+
+async function playAlbumById(albumId) {
+    try {
+        const res = await fetch('/api/library.php?action=album&album_id=' + albumId);
+        if (res.ok) {
+            const album = await res.json();
+            if (album && album.tracks && album.tracks.length > 0) {
+                if (typeof Player !== 'undefined' && Player.setQueue) {
+                    Player.setQueue(album.tracks, 0);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Failed to play album by id:", e);
+    }
+}
+
 
 
 /* ============================================================

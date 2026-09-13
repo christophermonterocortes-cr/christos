@@ -219,4 +219,3 @@ function init_sqlite_schema($pdo) {
         } catch (Exception $e) {}
     }
 }
-?>

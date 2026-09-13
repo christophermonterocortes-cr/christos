@@ -393,10 +393,8 @@ try {
             $baseDir = $resolved['path'];
 
             $results = [];
-            $rii = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($baseDir, RecursiveDirectoryIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::SELF_FIRST
-            );
+            $rdi = new RecursiveDirectoryIterator($baseDir, FilesystemIterator::SKIP_DOTS);
+            $rii = new RecursiveIteratorIterator($rdi, RecursiveIteratorIterator::SELF_FIRST, RecursiveIteratorIterator::CATCH_GET_CHILD);
 
             $count = 0;
             foreach ($rii as $file) {
@@ -571,4 +569,3 @@ function copyRecursive($src, $dst) {
         copy($src, $dst);
     }
 }
-?>

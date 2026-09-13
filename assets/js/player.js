@@ -379,7 +379,27 @@ const Player = {
         });
 
         audio.addEventListener('error', (e) => {
-            console.error("Audio error:", e);
+            console.error("Audio playback error:", e);
+            if (audio === this.activeAudio) {
+                const err = audio.error;
+                let errMsg = "Playback error";
+                if (err) {
+                    if (err.code === 4) errMsg = "Audio format or stream not supported";
+                    else if (err.code === 2) errMsg = "Network error during audio stream";
+                    else if (err.code === 3) errMsg = "Audio decoding error";
+                }
+                console.warn(`[Player] ${errMsg}. Checking queue recovery...`);
+                if (typeof showToast === 'function') {
+                    showToast(`${errMsg}. Skipping to next track...`, 'error');
+                }
+                if (this.queue && this.queue.length > 1) {
+                    setTimeout(() => {
+                        this.next();
+                    }, 800);
+                } else {
+                    this.updatePlayStateUI(false);
+                }
+            }
         });
     },
 

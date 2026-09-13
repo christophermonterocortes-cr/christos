@@ -818,4 +818,3 @@ function serveDefaultMoviePoster() {
     echo '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="#141420"/><rect x="30" y="30" width="240" height="390" rx="12" fill="none" stroke="#222238" stroke-width="2"/><polygon points="130,200 130,250 180,225" fill="#fa233b"/><text x="150" y="290" fill="#888899" font-size="18" font-family="sans-serif" text-anchor="middle" font-weight="bold">CINEMA</text></svg>';
     exit;
 }
-?>
