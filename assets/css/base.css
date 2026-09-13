@@ -2487,10 +2487,22 @@ body.fullscreen-active .fullscreen-overlay {
 @media (max-width: 768px) {
     #app-container {
         grid-template-columns: 1fr;
-        grid-template-rows: 1fr auto;
+        grid-template-rows: 1fr auto auto;
     }
     #sidebar {
         display: none;
+    }
+    #mobile-tabbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        background: rgba(14, 16, 23, 0.97);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border-top: 1px solid var(--border-color);
+        padding: 4px 6px calc(6px + env(safe-area-inset-bottom, 0px)) 6px;
+        z-index: 1000;
+        width: 100%;
     }
     #player-bar {
         grid-template-columns: 1fr auto;
@@ -2505,7 +2517,7 @@ body.fullscreen-active .fullscreen-overlay {
     #player-settings {
         display: none;
     }
-    #player-controls {
+    #player-center {
         grid-column: 1 / -1;
         width: 100%;
         max-width: 100%;
@@ -2525,6 +2537,53 @@ body.fullscreen-active .fullscreen-overlay {
         height: auto !important;
         min-height: 250px;
     }
+}
+
+/* Mobile Bottom Tabbar Base Styles (Hidden on Desktop) */
+.mobile-tabbar {
+    display: none;
+}
+
+.mobile-tab-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    min-width: 48px;
+    min-height: 48px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.15s ease, transform 0.1s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-tab-btn svg {
+    stroke-width: 2px;
+    transition: stroke 0.15s ease;
+}
+
+.mobile-tab-btn span {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.mobile-tab-btn:hover,
+.mobile-tab-btn.active {
+    color: var(--accent-color);
+}
+
+.mobile-tab-btn.active svg {
+    stroke: var(--accent-color);
+}
+
+.mobile-tab-btn:active {
+    transform: scale(0.94);
 }
 
 /* ============================================================
@@ -3658,6 +3717,77 @@ body.fullscreen-active .fullscreen-overlay {
     border-color: rgba(250, 35, 59, 0.6);
     background: rgba(45, 12, 18, 0.96);
     color: #ff7675;
+}
+
+.christos-toast.success {
+    border-color: rgba(46, 204, 113, 0.6);
+    background: rgba(12, 45, 24, 0.96);
+    color: #2ecc71;
+}
+
+.christos-toast.warning {
+    border-color: rgba(243, 156, 18, 0.6);
+    background: rgba(48, 32, 12, 0.96);
+    color: #f39c12;
+}
+
+.christos-toast.info {
+    border-color: rgba(52, 152, 219, 0.6);
+    background: rgba(15, 30, 48, 0.96);
+    color: #64b5f6;
+}
+
+/* Non-blocking Confirm & Prompt Dialogs */
+.christos-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10005;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.christos-confirm-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.christos-confirm-dialog {
+    background: rgba(20, 22, 33, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 14px;
+    padding: 24px;
+    max-width: 440px;
+    width: 90%;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 0, 0, 0.4);
+    color: #fff;
+    transform: scale(0.92);
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.christos-confirm-overlay.active .christos-confirm-dialog {
+    transform: scale(1);
+}
+
+.christos-confirm-dialog p {
+    margin: 0 0 16px 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: #e2e8f0;
+    word-break: break-word;
+}
+
+.christos-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 18px;
 }
 
 /* Spotlight Category Tabs */

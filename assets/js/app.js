@@ -123,6 +123,16 @@ function updateSidebarActive(viewName) {
     if (target) {
         target.classList.add('active');
     }
+
+    // Sync mobile bottom tabbar active state
+    document.querySelectorAll('.mobile-tab-btn').forEach(btn => btn.classList.remove('active'));
+    let mobileTabKey = 'music';
+    if (viewName === 'movies' || viewName === 'tvshows') mobileTabKey = 'cinema';
+    else if (viewName === 'files') mobileTabKey = 'files';
+    else if (viewName === 'downloader') mobileTabKey = 'downloader';
+    else if (viewName === 'settings') mobileTabKey = 'settings';
+    const mobTarget = document.querySelector('.mobile-tab-btn[data-tab="' + mobileTabKey + '"]');
+    if (mobTarget) mobTarget.classList.add('active');
 }
 
 async function loadView(view, param = null) {
@@ -1974,7 +1984,7 @@ async function parsePlaylistPreview() {
     if (!input || !container) return;
     const url = input.value.trim();
     if (!url) {
-        alert("Please paste a Spotify or YouTube Playlist link first.");
+        showToast("Please paste a Spotify or YouTube Playlist link first.", 'warning');
         return;
     }
 
@@ -2043,7 +2053,7 @@ async function startUniversalDownload() {
     const quality = qualitySel ? qualitySel.value : '24_96';
 
     if (!url) {
-        alert("Please paste a valid track/album URL");
+        showToast("Please paste a valid track/album URL", 'warning');
         return;
     }
 
@@ -2056,7 +2066,7 @@ async function startUniversalDownload() {
     if (result.success) {
         pollDownloaderStatus();
     } else {
-        alert("Download failed: " + (result.error || 'Unknown error'));
+        showToast("Download failed: " + (result.error || 'Unknown error'), 'error');
     }
 }
 
@@ -2216,11 +2226,11 @@ async function playOnlineTrack(item) {
             Player.setSingleTrack(trackMeta, data.stream_url);
             showToast("Playing: " + trackMeta.title);
         } else {
-            alert("Could not stream online track: " + (data.error || 'Check yt-dlp on host'));
+            showToast("Could not stream online track: " + (data.error || 'Check yt-dlp on host'), 'error');
         }
     } catch (err) {
         console.error("Online play error:", err);
-        alert("Streaming error: " + err.message);
+        showToast("Streaming error: " + err.message, 'error');
     }
 }
 
@@ -2567,33 +2577,34 @@ async function shareFile(relPath) {
     const data = await res.json();
     if (data && data.share_url) {
         navigator.clipboard.writeText(data.share_url);
-        alert('Direct Share Link copied to clipboard:\n\n' + data.share_url);
+        showToast('Share link copied to clipboard', 'success');
     }
 }
 
 async function promptCreateFolder() {
-    const name = prompt("Enter new folder name:");
-    if (!name) return;
-    const res = await fetch('/api/files.php?action=mkdir', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ root: currentFileRoot, path: currentFilePath, name: name })
+    showPromptDialog("Enter new folder name:", async (name) => {
+        const res = await fetch('/api/files.php?action=mkdir', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ root: currentFileRoot, path: currentFilePath, name: name })
+        });
+        const result = await res.json();
+        if (result.success) renderFilesView(currentFilePath, currentFileRoot);
+        else showToast('Failed to create folder: ' + (result.error || 'Unknown error'), 'error');
     });
-    const result = await res.json();
-    if (result.success) renderFilesView(currentFilePath, currentFileRoot);
-    else alert('Error: ' + (result.error || 'Failed to create folder'));
 }
 
 async function promptDeleteFile(fileName) {
-    if (!confirm('Are you sure you want to delete "' + fileName + '"?')) return;
-    const res = await fetch('/api/files.php?action=delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ root: currentFileRoot, path: currentFilePath, name: fileName })
+    showConfirmDialog('Are you sure you want to delete "' + fileName + '"?', async () => {
+        const res = await fetch('/api/files.php?action=delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ root: currentFileRoot, path: currentFilePath, name: fileName })
+        });
+        const result = await res.json();
+        if (result.success) renderFilesView(currentFilePath, currentFileRoot);
+        else showToast('Error: ' + (result.error || 'Failed to delete'), 'error');
     });
-    const result = await res.json();
-    if (result.success) renderFilesView(currentFilePath, currentFileRoot);
-    else alert('Error: ' + (result.error || 'Failed to delete'));
 }
 
 async function handleFileUpload(input) {
@@ -2608,7 +2619,7 @@ async function handleFileUpload(input) {
     });
     const result = await res.json();
     if (result.success) renderFilesView(currentFilePath, currentFileRoot);
-    else alert('Upload failed: ' + (result.error || 'Unknown error'));
+    else showToast('Upload failed: ' + (result.error || 'Unknown error'), 'error');
 }
 
 /* ============================================================
@@ -2669,15 +2680,20 @@ async function renderPlaylistsView() {
 }
 
 async function promptCreatePlaylist() {
-    const name = prompt("Enter playlist name:");
-    if (!name) return;
-    const res = await fetch('/api/library.php?action=create_playlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name })
+    showPromptDialog("Enter playlist name:", async (name) => {
+        const res = await fetch('/api/library.php?action=create_playlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
+        });
+        const result = await res.json();
+        if (result.success) {
+            showToast('Playlist created', 'success');
+            renderPlaylistsView();
+        } else {
+            showToast('Failed to create playlist: ' + (result.error || 'Unknown error'), 'error');
+        }
     });
-    const result = await res.json();
-    if (result.success) renderPlaylistsView();
 }
 
 async function openPlaylistDetail(playlistId) {
@@ -2780,13 +2796,15 @@ function playPlaylistTrack(index) {
 }
 
 async function deletePlaylist(playlistId) {
-    if (!confirm("Are you sure you want to delete this playlist?")) return;
-    await fetch('/api/library.php?action=delete_playlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playlist_id: playlistId })
+    showConfirmDialog("Are you sure you want to delete this playlist?", async () => {
+        await fetch('/api/library.php?action=delete_playlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playlist_id: playlistId })
+        });
+        showToast('Playlist deleted', 'info');
+        loadView('playlists');
     });
-    loadView('playlists');
 }
 
 async function removeTrackFromPlaylist(playlistId, trackId) {
@@ -3296,19 +3314,19 @@ async function saveScrobblerSettings() {
             }
         }
     } catch (e) {
-        alert('Failed to save scrobbler settings: ' + e.message);
+        showToast('Failed to save scrobbler settings: ' + e.message, 'error');
     }
 }
 
 function triggerLibraryRescan() {
-    alert("Starting library rescan in background...");
+    showToast("Starting library rescan in background...", 'info');
     fetch('/api/scanner.php?force=1')
         .then(r => r.json())
         .then(data => {
-            alert('Rescan complete!\n\nScanned: ' + data.scanned + '\nIndexed/Updated: ' + data.indexed);
+            showToast('Rescan complete! Scanned: ' + data.scanned + ', Indexed/Updated: ' + data.indexed, 'success');
             if (currentView === 'library') loadView('library', currentLibrary);
         })
-        .catch(e => alert('Error: ' + e.message));
+        .catch(e => showToast('Error: ' + e.message, 'error'));
 }
 
 function formatDuration(sec) {
@@ -3351,6 +3369,69 @@ function showToast(message, type = 'info') {
     window._toastTimer = setTimeout(() => {
         toast.classList.remove('active');
     }, 3200);
+}
+
+function showConfirmDialog(message, onConfirm) {
+    const overlay = document.createElement('div');
+    overlay.className = 'christos-confirm-overlay';
+    overlay.innerHTML = `
+        <div class="christos-confirm-dialog">
+            <p>${escapeHtml(message)}</p>
+            <div class="christos-confirm-actions">
+                <button class="btn btn-secondary confirm-cancel">Cancel</button>
+                <button class="btn btn-primary confirm-ok">Confirm</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('active'));
+    overlay.querySelector('.confirm-cancel').onclick = () => {
+        overlay.classList.remove('active');
+        setTimeout(() => overlay.remove(), 200);
+    };
+    overlay.querySelector('.confirm-ok').onclick = () => {
+        overlay.classList.remove('active');
+        setTimeout(() => overlay.remove(), 200);
+        if (onConfirm) onConfirm();
+    };
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.classList.remove('active');
+            setTimeout(() => overlay.remove(), 200);
+        }
+    });
+}
+
+function showPromptDialog(message, onSubmit, defaultValue = '') {
+    const overlay = document.createElement('div');
+    overlay.className = 'christos-confirm-overlay';
+    overlay.innerHTML = `
+        <div class="christos-confirm-dialog">
+            <p>${escapeHtml(message)}</p>
+            <input type="text" class="prompt-input" value="${escapeHtml(defaultValue)}" style="width:100%; padding:10px 12px; background:rgba(255,255,255,0.06); border:1px solid var(--border-color); border-radius:8px; color:#fff; font-size:0.9rem; margin:8px 0 16px 0; outline:none;">
+            <div class="christos-confirm-actions">
+                <button class="btn btn-secondary confirm-cancel">Cancel</button>
+                <button class="btn btn-primary confirm-ok">OK</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('active'));
+    const input = overlay.querySelector('.prompt-input');
+    input.focus();
+    input.select();
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { overlay.querySelector('.confirm-ok').click(); }
+        if (e.key === 'Escape') { overlay.querySelector('.confirm-cancel').click(); }
+    });
+    overlay.querySelector('.confirm-cancel').onclick = () => {
+        overlay.classList.remove('active');
+        setTimeout(() => overlay.remove(), 200);
+    };
+    overlay.querySelector('.confirm-ok').onclick = () => {
+        const val = input.value.trim();
+        overlay.classList.remove('active');
+        setTimeout(() => overlay.remove(), 200);
+        if (val && onSubmit) onSubmit(val);
+    };
 }
 
 function toggleTrackSelection(trackId, trackObj, event) {

@@ -211,7 +211,12 @@ function init_sqlite_schema($pdo) {
         "ALTER TABLE artists ADD COLUMN tags TEXT;",
         "ALTER TABLE artists ADD COLUMN genres TEXT;",
         "CREATE INDEX IF NOT EXISTS idx_track_library ON tracks(library_tag);",
-        "CREATE INDEX IF NOT EXISTS idx_track_rating ON tracks(rating);"
+        "CREATE INDEX IF NOT EXISTS idx_track_rating ON tracks(rating);",
+        "CREATE INDEX IF NOT EXISTS idx_track_favorite ON tracks(is_favorite);",
+        "CREATE INDEX IF NOT EXISTS idx_album_favorite ON albums(is_favorite);",
+        "CREATE INDEX IF NOT EXISTS idx_album_rating ON albums(rating);",
+        "CREATE INDEX IF NOT EXISTS idx_play_history_track ON play_history(track_id);",
+        "CREATE INDEX IF NOT EXISTS idx_play_history_played ON play_history(played_at);"
     ];
     foreach ($migrations as $sql) {
         try {

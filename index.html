@@ -4,17 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CHRISTOS 3.0 - Hi-Fi Media & Cinema Server</title>
+    <meta name="description" content="CHRISTOS 3.0 — Self-hosted Hi-Fi lossless audio streaming and cinema server. Bit-perfect FLAC/ALAC playback with audiophile DSP, synced lyrics, and immersive visualizers.">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="canonical" href="/">
+
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="CHRISTOS 3.0 — Hi-Fi Media & Cinema Server">
+    <meta property="og:description" content="Self-hosted bit-perfect lossless audio streaming with audiophile DSP, cinema player, synced lyrics, and immersive visualizers.">
+    <meta property="og:image" content="assets/img/default-star.svg">
+
+    <!-- PWA & Mobile -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#fa233b">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="assets/css/base.css?v=3.0.0">
     <link rel="stylesheet" href="assets/css/apple.css?v=3.0.0" id="theme-css">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "CHRISTOS 3.0",
+        "description": "Self-hosted Hi-Fi lossless audio streaming and cinema server",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Web",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+    </script>
+
     <!-- Three.js for 3D visualizers (Self-Contained Offline/LAN) -->
-    <script src="assets/js/three.min.js?v=3.0.0"></script>
+    <script src="assets/js/three.min.js?v=3.0.0" defer></script>
 </head>
 <body>
     <!-- MASTER VISUALIZER CONTAINER -->
@@ -122,7 +151,7 @@
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
                     <span>Full Screen (F)</span>
                 </button>
-                <div class="sidebar-status">TrueNAS Media Studio v2.3.0</div>
+                <div class="sidebar-status">CHRISTOS 3.0 — Hi-Fi Media Server</div>
             </div>
         </aside>
 
@@ -207,7 +236,7 @@
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
                 </button>
                 <div class="volume-wrapper">
-                    <button class="vol-btn" onclick="toggleMute()">
+                    <button class="vol-btn" onclick="toggleMute()" title="Mute/Unmute" aria-label="Mute or unmute">
                         <svg class="vol-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
                     </button>
                     <input type="range" id="volume-bar" min="0" max="1" step="0.01" value="0.8" title="Volume (Up/Down Arrows)">
@@ -236,11 +265,39 @@
             </div>
         </footer>
         
+        <!-- Mobile Bottom Navigation Tabbar (Active on mobile viewports <= 768px) -->
+        <nav id="mobile-tabbar" class="mobile-tabbar" aria-label="Mobile Navigation">
+            <button class="mobile-tab-btn active" data-tab="music" onclick="loadView('library', 'flac')" aria-label="FLAC Music Library">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/></svg>
+                <span>Music</span>
+            </button>
+            <button class="mobile-tab-btn" data-tab="cinema" onclick="loadView('movies')" aria-label="Movies & Cinema">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+                <span>Cinema</span>
+            </button>
+            <button class="mobile-tab-btn" data-tab="files" onclick="loadView('files')" aria-label="File Browser">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>Files</span>
+            </button>
+            <button class="mobile-tab-btn" data-tab="downloader" onclick="loadView('downloader')" aria-label="Lossless Downloader">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Download</span>
+            </button>
+            <button class="mobile-tab-btn" data-tab="search" onclick="openSpotlight()" aria-label="Spotlight Search">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span>Search</span>
+            </button>
+            <button class="mobile-tab-btn" data-tab="settings" onclick="loadView('settings')" aria-label="Settings">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>Settings</span>
+            </button>
+        </nav>
+        
         <!-- Standard Lyrics Side Drawer -->
         <div id="lyrics-overlay">
             <div class="lyrics-header">
                 <h3>Lyrics</h3>
-                <button class="close-lyrics-btn" onclick="toggleLyrics()">
+                <button class="close-lyrics-btn" onclick="toggleLyrics()" title="Close lyrics" aria-label="Close lyrics panel">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
@@ -377,20 +434,20 @@
                 </div>
 
                 <div class="fullscreen-deck-center">
-                    <button class="ctrl-btn-fs" onclick="prevTrack()">
+                    <button class="ctrl-btn-fs" onclick="prevTrack()" title="Previous track" aria-label="Previous track">
                         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
                     </button>
-                    <button class="ctrl-btn-fs play-fs" onclick="togglePlay()" id="fs-play-btn">
+                    <button class="ctrl-btn-fs play-fs" onclick="togglePlay()" id="fs-play-btn" title="Play/Pause" aria-label="Play or Pause">
                         <svg id="fs-play-icon" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                         <svg id="fs-pause-icon" viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                     </button>
-                    <button class="ctrl-btn-fs" onclick="nextTrack()">
+                    <button class="ctrl-btn-fs" onclick="nextTrack()" title="Next track" aria-label="Next track">
                         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
                     </button>
                 </div>
 
                 <div class="fullscreen-deck-right">
-                    <button class="ctrl-btn-fs" onclick="toggleRepeat()" id="fs-repeat-btn">
+                    <button class="ctrl-btn-fs" onclick="toggleRepeat()" id="fs-repeat-btn" title="Repeat" aria-label="Toggle repeat">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
                     </button>
                     <div class="volume-wrapper-fs">
@@ -406,19 +463,19 @@
     <audio id="audio1" preload="auto" crossorigin="anonymous"></audio>
     <audio id="audio2" preload="auto" crossorigin="anonymous"></audio>
 
-    <script src="assets/js/visualizers/visualizer.js?v=3.0.0"></script>
-    <script src="assets/js/visualizers/ncs.js?v=3.0.0"></script>
-    <script src="assets/js/visualizers/bars.js?v=3.0.0"></script>
-    <script src="assets/js/visualizers/wave.js?v=3.0.0"></script>
-    <script src="assets/js/visualizers/sphere.js?v=3.0.0"></script>
-    <script src="assets/js/visualizers/particles.js?v=3.0.0"></script>
-    <script src="assets/js/visualizers/radial.js?v=3.0.0"></script>
-    <script src="assets/js/visualizers/xbox.js?v=3.0.0"></script>
-    <script src="assets/js/visualizers/synthwave.js?v=3.0.0"></script>
-    <script src="assets/js/visualizers/vumeter.js?v=3.0.0"></script>
-    <script src="assets/js/visualizers/liquid.js?v=3.0.0"></script>
-    <script src="assets/js/dsp.js?v=3.0.0"></script>
-    <script src="assets/js/player.js?v=3.0.0"></script>
-    <script src="assets/js/app.js?v=3.0.0"></script>
+    <script src="assets/js/visualizers/visualizer.js?v=3.0.0" defer></script>
+    <script src="assets/js/visualizers/ncs.js?v=3.0.0" defer></script>
+    <script src="assets/js/visualizers/bars.js?v=3.0.0" defer></script>
+    <script src="assets/js/visualizers/wave.js?v=3.0.0" defer></script>
+    <script src="assets/js/visualizers/sphere.js?v=3.0.0" defer></script>
+    <script src="assets/js/visualizers/particles.js?v=3.0.0" defer></script>
+    <script src="assets/js/visualizers/radial.js?v=3.0.0" defer></script>
+    <script src="assets/js/visualizers/xbox.js?v=3.0.0" defer></script>
+    <script src="assets/js/visualizers/synthwave.js?v=3.0.0" defer></script>
+    <script src="assets/js/visualizers/vumeter.js?v=3.0.0" defer></script>
+    <script src="assets/js/visualizers/liquid.js?v=3.0.0" defer></script>
+    <script src="assets/js/dsp.js?v=3.0.0" defer></script>
+    <script src="assets/js/player.js?v=3.0.0" defer></script>
+    <script src="assets/js/app.js?v=3.0.0" defer></script>
 </body>
 </html>

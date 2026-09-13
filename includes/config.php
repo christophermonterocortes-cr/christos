@@ -85,3 +85,12 @@ define('UNIVERSAL_DOWNLOADS_PATH', getenv('UNIVERSAL_DOWNLOADS_PATH') ?: '/mnt/D
 // Security & Sessions
 define('SESSION_SECRET', getenv('SESSION_SECRET') ?: 'christos_hifi_production_secret_key_2026');
 define('APP_VERSION', '3.0.0');
+
+// Global Security Headers (applied across all HTTP endpoints)
+if (php_sapi_name() !== 'cli' && !headers_sent()) {
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('X-XSS-Protection: 1; mode=block');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+}

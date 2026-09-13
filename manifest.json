@@ -1,5 +1,5 @@
 {
-  "name": "CHRISTOS Hi-Fi Media Server",
+  "name": "CHRISTOS 3.0 - Hi-Fi Media Server",
   "short_name": "CHRISTOS",
   "description": "Bit-Perfect Audiophile Media Streaming Platform",
   "start_url": "/",
@@ -9,7 +9,7 @@
   "icons": [
     {
       "src": "assets/img/default-star.svg",
-      "sizes": "any",
+      "sizes": "192x192 512x512 any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }

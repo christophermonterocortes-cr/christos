@@ -681,9 +681,13 @@ const DSP = {
     },
 
     promptSavePreset() {
-        const name = prompt("Enter a name for your custom EQ curve:");
-        if (name && name.trim()) {
-            this.saveCustomPreset(name.trim());
+        if (typeof showPromptDialog === 'function') {
+            showPromptDialog("Enter a name for your custom EQ curve:", (name) => {
+                if (name && name.trim()) {
+                    this.saveCustomPreset(name.trim());
+                    if (typeof showToast === 'function') showToast('Saved custom EQ curve: ' + name.trim(), 'success');
+                }
+            });
         }
     },
 
