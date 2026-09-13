@@ -153,6 +153,7 @@ const Player = {
     repeatNCurrent: 0,
     isMuted: false,
     previousVolume: 0.8,
+    fadeRampInterval: null,
 
     // Sleep Timer Engine
     sleepTimerRemaining: null, // seconds
@@ -508,6 +509,14 @@ const Player = {
         if (!track) return;
         this.ensureAudioContext();
 
+        if (!this.activeAudio) {
+            this.activeAudio = this.audio1 || document.getElementById('audio1');
+        }
+        if (this.inactiveAudio) {
+            this.inactiveAudio.pause();
+            this.inactiveAudio.currentTime = 0;
+        }
+
         this.currentTrack = track;
         this.hasScrobbledCurrent = false;
         this.hasRecordedListen = false;
@@ -557,8 +566,35 @@ const Player = {
         this.preloadNext();
     },
 
+    preloadNext() {
+        if (!this.queue || this.queue.length <= 1) return;
+        let nextIdx = this.queueIndex + 1;
+        if (this.isShuffle) return;
+        if (nextIdx >= this.queue.length && this.repeatMode === 'all') {
+            nextIdx = 0;
+        }
+        if (nextIdx < this.queue.length) {
+            const nextTrack = this.queue[nextIdx];
+            if (nextTrack) {
+                const url = nextTrack.stream_url || `/api/stream.php?id=${nextTrack.id}`;
+                const existing = document.getElementById('audio-prefetch-link');
+                if (existing) existing.remove();
+                const link = document.createElement('link');
+                link.id = 'audio-prefetch-link';
+                link.rel = 'prefetch';
+                link.href = url;
+                link.as = 'fetch';
+                document.head.appendChild(link);
+            }
+        }
+    },
+
     fadePlay(duration = 0.2) {
         this.ensureAudioContext();
+        if (this.fadeRampInterval) {
+            clearInterval(this.fadeRampInterval);
+            this.fadeRampInterval = null;
+        }
         if (!this.activeAudio.src && this.queue.length > 0) {
             this.playTrack(this.queue[this.queueIndex]);
             return Promise.resolve();
@@ -570,11 +606,12 @@ const Player = {
                 Visualizer.start(this.analyser);
             }
             let start = performance.now();
-            let ramp = setInterval(() => {
+            this.fadeRampInterval = setInterval(() => {
                 let elapsed = (performance.now() - start) / (duration * 1000);
                 if (elapsed >= 1) {
                     this.activeAudio.volume = targetVol;
-                    clearInterval(ramp);
+                    clearInterval(this.fadeRampInterval);
+                    this.fadeRampInterval = null;
                 } else {
                     this.activeAudio.volume = Math.max(0, Math.min(targetVol, elapsed * targetVol));
                 }
@@ -584,14 +621,19 @@ const Player = {
 
     fadePause(duration = 0.2) {
         if (!this.activeAudio || this.activeAudio.paused) return;
+        if (this.fadeRampInterval) {
+            clearInterval(this.fadeRampInterval);
+            this.fadeRampInterval = null;
+        }
         const currentVol = this.activeAudio.volume;
         let start = performance.now();
-        let ramp = setInterval(() => {
+        this.fadeRampInterval = setInterval(() => {
             let elapsed = (performance.now() - start) / (duration * 1000);
             if (elapsed >= 1) {
                 this.activeAudio.pause();
                 this.activeAudio.volume = currentVol;
-                clearInterval(ramp);
+                clearInterval(this.fadeRampInterval);
+                this.fadeRampInterval = null;
             } else {
                 this.activeAudio.volume = Math.max(0, (1 - elapsed) * currentVol);
             }
@@ -716,25 +758,8 @@ const Player = {
         if (nextIdx < this.queue.length || this.repeatMode === 'all') {
             if (nextIdx >= this.queue.length) nextIdx = 0;
             this.queueIndex = nextIdx;
-
-            const temp = this.activeAudio;
-            this.activeAudio = this.inactiveAudio;
-            this.inactiveAudio = temp;
-
-            this.currentTrack = this.queue[this.queueIndex];
-            this.hasRecordedListen = false;
-            this.updateMetadataUI(this.currentTrack);
-            this.fetchLyrics(this.currentTrack.id);
-
-            this.fadePlay(0.2).then(() => {
-                if (typeof Visualizer !== 'undefined' && this.analyser) {
-                    Visualizer.start(this.analyser);
-                }
-                this.updateMediaSession(this.currentTrack);
-                this.saveSession();
-            }).catch(e => console.error("Gapless transition play error:", e));
-
-            this.preloadNext();
+            const nextTrack = this.queue[this.queueIndex];
+            this.playTrack(nextTrack);
         } else {
             this.updatePlayStateUI(false);
         }
@@ -1197,24 +1222,11 @@ const Player = {
     },
 
     setSingleTrack(trackMeta, streamUrl) {
-        this.ensureAudioContext();
+        if (!trackMeta) return;
+        if (streamUrl) trackMeta.stream_url = streamUrl;
         this.queue = [trackMeta];
         this.queueIndex = 0;
-        this.currentTrack = trackMeta;
-        this.updateMetadataUI(trackMeta);
-
-        if (!streamUrl) streamUrl = trackMeta.stream_url || `/api/stream.php?id=${trackMeta.id}`;
-        this.activeAudio.src = streamUrl;
-        this.activeAudio.currentTime = 0;
-        this.activeAudio.play().then(() => {
-            if (typeof Visualizer !== 'undefined' && this.analyser) {
-                Visualizer.start(this.analyser);
-            }
-            if (typeof DSP !== 'undefined' && DSP.applyNightcore) {
-                DSP.applyNightcore();
-            }
-            this.updateMediaSession(trackMeta);
-        }).catch(err => console.error("Playback error:", err));
+        this.playTrack(trackMeta);
     },
 
     updatePlayStateUI(isPlaying) {
