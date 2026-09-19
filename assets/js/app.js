@@ -810,16 +810,16 @@ function renderMoviesHtml() {
                 <span class="cinema-items-count">${currentMoviesList.length} Items</span>
             </div>
             <div class="cinema-topbar-right">
-                <button class="cinema-action-btn primary" onclick="playFirstMovie()" title="Play All">
+                <button class="cinema-action-btn primary" onclick="playFirstMovie()" title="Play All" aria-label="Play all movies">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
                     <span>Play</span>
                 </button>
-                <button class="cinema-action-btn" onclick="playRandomMovie()" title="Shuffle Play">
+                <button class="cinema-action-btn" onclick="playRandomMovie()" title="Shuffle Play" aria-label="Shuffle play movies">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
                     <span>Shuffle</span>
                 </button>
                 <div class="cinema-sort-dropdown">
-                    <button class="cinema-action-btn" onclick="toggleMovieSortMenu(event)" title="Sort Movies">
+                    <button class="cinema-action-btn" onclick="toggleMovieSortMenu(event)" title="Sort Movies" aria-label="Sort movies">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="12" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 9 20 6 23 9"/><line x1="20" y1="6" x2="20" y2="18"/></svg>
                         <span>${currentSortLabel}</span>
                     </button>
@@ -832,7 +832,7 @@ function renderMoviesHtml() {
                         <div class="sort-menu-item ${window.currentMovieSort==='size_desc'?'active':''}" onclick="applyMovieSort('size_desc')">File Size</div>
                     </div>
                 </div>
-                <button class="cinema-action-btn icon-only" onclick="renderMoviesView(true)" title="Refresh Metadata & Posters Online">
+                <button class="cinema-action-btn icon-only" onclick="renderMoviesView(true)" title="Refresh Metadata & Posters Online" aria-label="Refresh metadata and posters online">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 </button>
             </div>
@@ -1081,8 +1081,8 @@ const CinemaPlayer = {
                 <!-- Smart Resume Notification Banner -->
                 <div id="theater-resume-banner" class="theater-resume-banner" style="display:none;">
                     <span>Resumed at <b id="theater-resume-time">00:00</b></span>
-                    <button onclick="CinemaPlayer.restartFromBeginning()" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:#fff; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:700; cursor:pointer;">Restart from 0:00</button>
-                    <button onclick="CinemaPlayer.dismissResume()" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; padding:0 4px; display:inline-flex; align-items:center;">
+                    <button onclick="CinemaPlayer.restartFromBeginning()" aria-label="Restart video from beginning" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:#fff; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:700; cursor:pointer;">Restart from 0:00</button>
+                    <button onclick="CinemaPlayer.dismissResume()" aria-label="Dismiss resume banner" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; padding:0 4px; display:inline-flex; align-items:center;">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                 </div>
@@ -1094,8 +1094,8 @@ const CinemaPlayer = {
                         <div id="theater-next-title" style="font-size:0.92rem; font-weight:700; color:#fff; margin-top:2px;"></div>
                         <div style="font-size:0.8rem; color:#22c55e; font-weight:600; margin-top:2px;">Playing in <span id="theater-next-countdown">10</span>s</div>
                     </div>
-                    <button onclick="CinemaPlayer.playNextEpisodeNow()" class="theater-exit-btn" style="background:#fa233b !important; border:none !important; padding:6px 14px !important; font-size:0.82rem !important;">Play Now</button>
-                    <button onclick="CinemaPlayer.cancelNextEpisode()" style="background:transparent !important; border:none !important; color:#888 !important; cursor:pointer !important; padding:4px !important; display:inline-flex; align-items:center;">
+                    <button onclick="CinemaPlayer.playNextEpisodeNow()" class="theater-exit-btn" aria-label="Play next episode now" style="background:#fa233b !important; border:none !important; padding:6px 14px !important; font-size:0.82rem !important;">Play Now</button>
+                    <button onclick="CinemaPlayer.cancelNextEpisode()" aria-label="Cancel next episode" style="background:transparent !important; border:none !important; color:#888 !important; cursor:pointer !important; padding:4px !important; display:inline-flex; align-items:center;">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                 </div>
@@ -1103,7 +1103,7 @@ const CinemaPlayer = {
                 <!-- Top Cinema Bar -->
                 <div class="theater-top-overlay">
                     <div class="theater-title-wrap">
-                        <button class="theater-exit-btn" onclick="CinemaPlayer.close()">
+                        <button class="theater-exit-btn" onclick="CinemaPlayer.close()" aria-label="Exit cinema theater">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
                             <span>Exit</span>
                         </button>
@@ -1113,16 +1113,16 @@ const CinemaPlayer = {
                         </div>
                     </div>
                     <div class="theater-top-actions">
-                        <button class="theater-icon-btn" id="theater-dialogue-btn" onclick="CinemaPlayer.toggleDialogueBoost()" title="Dialogue Boost / Night Mode (Compressor) [B]">
+                        <button class="theater-icon-btn" id="theater-dialogue-btn" onclick="CinemaPlayer.toggleDialogueBoost()" title="Dialogue Boost / Night Mode (Compressor) [B]" aria-label="Dialogue boost compressor">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                         </button>
-                        <button class="theater-icon-btn" id="theater-fit-btn" onclick="CinemaPlayer.toggleVideoFit()" title="Aspect Ratio: Fit / Fill / Stretch [S]">
+                        <button class="theater-icon-btn" id="theater-fit-btn" onclick="CinemaPlayer.toggleVideoFit()" title="Aspect Ratio: Fit / Fill / Stretch [S]" aria-label="Toggle video aspect ratio">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
                         </button>
-                        <button class="theater-icon-btn" onclick="CinemaPlayer.togglePiP()" title="Picture-in-Picture">
+                        <button class="theater-icon-btn" onclick="CinemaPlayer.togglePiP()" title="Picture-in-Picture" aria-label="Picture in picture">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><rect x="12" y="12" width="8" height="8" rx="1"/></svg>
                         </button>
-                        <button class="theater-icon-btn" onclick="CinemaPlayer.close()" title="Close Theater (Esc)">
+                        <button class="theater-icon-btn" onclick="CinemaPlayer.close()" title="Close Theater (Esc)" aria-label="Close cinema theater">
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         </button>
                     </div>
@@ -1144,31 +1144,31 @@ const CinemaPlayer = {
                     <!-- Deck Buttons -->
                     <div class="theater-deck-bar">
                         <div class="theater-deck-left">
-                            <button class="theater-play-btn" id="theater-play-trigger" onclick="CinemaPlayer.togglePlay()" title="Play/Pause (Space / K)">
+                            <button class="theater-play-btn" id="theater-play-trigger" onclick="CinemaPlayer.togglePlay()" title="Play/Pause (Space / K)" aria-label="Play or pause video">
                                 <svg id="theater-deck-play-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
                                 <svg id="theater-deck-pause-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                             </button>
 
-                            <button class="theater-skip-btn" onclick="CinemaPlayer.seekRelative(-10)" title="Rewind 10s (Left Arrow / J, Shift for 30s)">
+                            <button class="theater-skip-btn" onclick="CinemaPlayer.seekRelative(-10)" title="Rewind 10s (Left Arrow / J, Shift for 30s)" aria-label="Rewind 10 seconds">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                                 <span>10s</span>
                             </button>
 
-                            <button class="theater-skip-btn" onclick="CinemaPlayer.seekRelative(10)" title="Forward 10s (Right Arrow / L, Shift for 30s)">
+                            <button class="theater-skip-btn" onclick="CinemaPlayer.seekRelative(10)" title="Forward 10s (Right Arrow / L, Shift for 30s)" aria-label="Forward 10 seconds">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                                 <span>10s</span>
                             </button>
 
-                            <button class="theater-skip-btn" id="theater-next-ep-btn" onclick="CinemaPlayer.playNextEpisodeNow()" style="${nextEpisodeInfo ? 'display:inline-flex;' : 'display:none;'}" title="Next Episode">
+                            <button class="theater-skip-btn" id="theater-next-ep-btn" onclick="CinemaPlayer.playNextEpisodeNow()" style="${nextEpisodeInfo ? 'display:inline-flex;' : 'display:none;'}" title="Next Episode" aria-label="Play next episode">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
                                 <span>Next Ep</span>
                             </button>
 
                             <div class="theater-volume-group">
-                                <button class="theater-icon-btn" onclick="CinemaPlayer.toggleMute()" title="Mute/Unmute (M)" style="width:34px !important; height:34px !important; background:transparent !important; border:none !important;">
+                                <button class="theater-icon-btn" onclick="CinemaPlayer.toggleMute()" title="Mute/Unmute (M)" aria-label="Mute or unmute video" style="width:34px !important; height:34px !important; background:transparent !important; border:none !important;">
                                     <svg id="theater-vol-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
                                 </button>
-                                <input type="range" class="theater-volume-slider" id="theater-volume-slider" min="0" max="1" step="0.02" value="1" oninput="CinemaPlayer.setVolume(this.value)">
+                                <input type="range" class="theater-volume-slider" id="theater-volume-slider" min="0" max="1" step="0.02" value="1" oninput="CinemaPlayer.setVolume(this.value)" aria-label="Video volume level">
                             </div>
 
                             <div class="theater-time-display" id="theater-time-display" onclick="CinemaPlayer.toggleTimeFormat()" title="Click to toggle remaining time">
@@ -1179,24 +1179,24 @@ const CinemaPlayer = {
                         <div class="theater-deck-right">
                             <!-- Subtitles Menu -->
                             <div style="position:relative;">
-                                <button class="theater-icon-btn" id="theater-sub-btn" onclick="CinemaPlayer.toggleMenu('subtitles')" title="Subtitles (C)">
+                                <button class="theater-icon-btn" id="theater-sub-btn" onclick="CinemaPlayer.toggleMenu('subtitles')" title="Subtitles (C)" aria-label="Subtitles menu">
                                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="7" y1="15" x2="7.01" y2="15"/><line x1="11" y1="15" x2="13" y2="15"/><line x1="17" y1="15" x2="17.01" y2="15"/></svg>
                                 </button>
                                 <div id="theater-sub-menu" class="theater-menu-popup">
                                     <div class="theater-menu-title">Subtitle Size</div>
                                     <div class="theater-sub-size-bar">
-                                        <button class="theater-sub-size-btn ${this.subFontSize==='standard'?'active':''}" onclick="CinemaPlayer.setSubtitleSize('standard')">Normal</button>
-                                        <button class="theater-sub-size-btn ${this.subFontSize==='large'?'active':''}" onclick="CinemaPlayer.setSubtitleSize('large')">Large</button>
-                                        <button class="theater-sub-size-btn ${this.subFontSize==='xlarge'?'active':''}" onclick="CinemaPlayer.setSubtitleSize('xlarge')">X-Large</button>
+                                        <button class="theater-sub-size-btn ${this.subFontSize==='standard'?'active':''}" onclick="CinemaPlayer.setSubtitleSize('standard')" aria-label="Standard subtitle size">Normal</button>
+                                        <button class="theater-sub-size-btn ${this.subFontSize==='large'?'active':''}" onclick="CinemaPlayer.setSubtitleSize('large')" aria-label="Large subtitle size">Large</button>
+                                        <button class="theater-sub-size-btn ${this.subFontSize==='xlarge'?'active':''}" onclick="CinemaPlayer.setSubtitleSize('xlarge')" aria-label="Extra large subtitle size">X-Large</button>
                                     </div>
                                     <div class="theater-menu-title" style="margin-top:6px;">Tracks</div>
                                     ${subMenuItems}
                                     <div class="theater-sub-sync-bar">
                                         <span>Sync: <b id="theater-sub-offset-val">0.0s</b></span>
                                         <div class="theater-sub-sync-btns">
-                                            <button class="theater-sync-btn" onclick="CinemaPlayer.adjustSubtitleOffset(-0.5)" title="Delay -0.5s [">[ -0.5s ]</button>
-                                            <button class="theater-sync-btn" onclick="CinemaPlayer.resetSubtitleOffset()" title="Reset Sync">[ Reset ]</button>
-                                            <button class="theater-sync-btn" onclick="CinemaPlayer.adjustSubtitleOffset(0.5)" title="Advance +0.5s ]">[ +0.5s ]</button>
+                                            <button class="theater-sync-btn" onclick="CinemaPlayer.adjustSubtitleOffset(-0.5)" title="Delay -0.5s [" aria-label="Delay subtitles 0.5s">[ -0.5s ]</button>
+                                            <button class="theater-sync-btn" onclick="CinemaPlayer.resetSubtitleOffset()" title="Reset Sync" aria-label="Reset subtitle sync">[ Reset ]</button>
+                                            <button class="theater-sync-btn" onclick="CinemaPlayer.adjustSubtitleOffset(0.5)" title="Advance +0.5s ]" aria-label="Advance subtitles 0.5s">[ +0.5s ]</button>
                                         </div>
                                     </div>
                                 </div>
@@ -1204,7 +1204,7 @@ const CinemaPlayer = {
 
                             <!-- Speed Menu -->
                             <div style="position:relative;">
-                                <button class="theater-icon-btn" id="theater-speed-btn" onclick="CinemaPlayer.toggleMenu('speed')" title="Playback Speed (< / >)">
+                                <button class="theater-icon-btn" id="theater-speed-btn" onclick="CinemaPlayer.toggleMenu('speed')" title="Playback Speed (< / >)" aria-label="Playback speed menu">
                                     <span id="theater-speed-label" style="font-size:0.78rem; font-weight:800;">1x</span>
                                 </button>
                                 <div id="theater-speed-menu" class="theater-menu-popup">
@@ -1214,7 +1214,7 @@ const CinemaPlayer = {
                             </div>
 
                             <!-- Fullscreen Button -->
-                            <button class="theater-icon-btn" onclick="CinemaPlayer.toggleFullscreen()" title="Fullscreen (F)">
+                            <button class="theater-icon-btn" onclick="CinemaPlayer.toggleFullscreen()" title="Fullscreen (F)" aria-label="Toggle fullscreen video">
                                 <svg id="theater-fs-expand" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
                                 <svg id="theater-fs-compress" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
                             </button>
@@ -2262,8 +2262,9 @@ async function executeSpotlightSearch(query) {
                                 <div style="color:var(--text-secondary); font-size:0.78rem;">${escapeHtml(item.uploader || 'YouTube')} • Online Stream</div>
                             </div>
                             <span style="font-size:0.75rem; color:#888;">${formatDuration(item.duration)}</span>
-                            <button class="btn btn-primary" style="padding:4px 10px; font-size:0.75rem; margin-left:8px;" onclick="event.stopPropagation(); playOnlineTrack({id:'${item.id}', title:'${cleanTitle}', uploader:'${cleanUploader}', thumbnail:'${cleanThumb}', duration:${item.duration || 0}})">
-                                ▶ Play
+                            <button class="btn btn-primary" style="padding:4px 10px; font-size:0.75rem; margin-left:8px; display:inline-flex; align-items:center; gap:4px;" onclick="event.stopPropagation(); playOnlineTrack({id:'${item.id}', title:'${cleanTitle}', uploader:'${cleanUploader}', thumbnail:'${cleanThumb}', duration:${item.duration || 0}})" aria-label="Play online track">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                <span>Play</span>
                             </button>
                         </div>
                     `;
@@ -2386,7 +2387,7 @@ async function executeSpotlightSearch(query) {
                         </div>
                         <div style="flex:1; min-width:0;">
                             <div style="font-weight:700; color:#fff; font-size:0.88rem;">${escapeHtml(tv.title)}</div>
-                            <div style="color:var(--text-secondary); font-size:0.78rem;">${tv.year ? tv.year + ' • ' : ''}TV Series ${tv.rating ? '★ ' + tv.rating : ''}</div>
+                            <div style="color:var(--text-secondary); font-size:0.78rem;">${tv.year ? tv.year + ' • ' : ''}TV Series ${tv.rating ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="var(--accent-color)" style="vertical-align:-1px; margin-right:2px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' + tv.rating : ''}</div>
                         </div>
                     </div>
                 `;

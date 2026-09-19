@@ -8,10 +8,9 @@ if ($hasGetId3) {
 }
 
 $isCli = (php_sapi_name() === 'cli');
-$isJson = isset($_GET['format']) && $_GET['format'] === 'json';
 
-if (!$isCli && $isJson) {
-    header('Content-Type: application/json');
+if (!$isCli) {
+    header('Content-Type: application/json; charset=utf-8');
 }
 
 $stats = [
