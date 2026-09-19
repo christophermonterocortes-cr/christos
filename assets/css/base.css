@@ -19,6 +19,57 @@
     padding: 0;
 }
 
+/* ==========================================================================
+   Accessibility: High-Contrast Focus Visible Indicators (WCAG 2.1 AA)
+   ========================================================================== */
+:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+button:focus-visible,
+.btn:focus-visible,
+.ctrl-btn:focus-visible,
+.ctrl-btn-small:focus-visible,
+.vol-btn:focus-visible,
+.icon-btn:focus-visible,
+.mobile-tab-btn:focus-visible,
+.tab-btn:focus-visible,
+.lib-tab-btn:focus-visible,
+.action-btn:focus-visible,
+.close-lyrics-btn:focus-visible,
+.fullscreen-exit-btn:focus-visible,
+.fullscreen-nav-btn:focus-visible,
+a:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 1px;
+}
+
+input[type="range"]:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 3px;
+}
+
+#sidebar nav li:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.star-icon:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+
 body {
     background: var(--bg-color);
     color: var(--text-color);

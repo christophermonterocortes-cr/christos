@@ -22,15 +22,19 @@
 | 3 | `index.html` | Accessibility gap: missing `aria-label` on seek bar, volume bar, fullscreen controls, selects | Resolved |
 | 4 | `assets/js/app.js` | Accessibility gap: missing `aria-label` on `CinemaPlayer` icon buttons & playback controls | Resolved |
 | 5 | `assets/js/app.js` | Zero-emoji rule violation: `\u25b6` at line 2266 and `\u2605` at line 2389 replaced with SVGs | Resolved |
+| 6 | `api/tvshows.php` | Fallback TV poster SVG missing `Cache-Control: public, max-age=86400` header | Resolved |
+| 7 | `assets/css/base.css` | Accessibility: Added high-contrast `:focus-visible` indicators (WCAG 2.1 AA) across all controls | Resolved |
+| 8 | `index.html` & `app.js` | Accessibility: Added `tabindex="0"` and keyboard Enter/Space activation to sidebar nav & star ratings | Resolved |
 
 ## 4. Verification & Validation Log
 - [x] **Backend API Health Check**: 13/13 endpoints return HTTP 200 and valid JSON (`test_all_views_backend.py`)
 - [x] **Security Validation**: SSRF & Path Traversal blocked with HTTP 400 (`test_security_and_progress.py`)
-- [x] **Fallback Artwork MIME Check**: Verified HTTP 200, `Content-Type: image/svg+xml`, `Cache-Control: public, max-age=86400`
+- [x] **Fallback Artwork MIME Check**: Verified HTTP 200, `Content-Type: image/svg+xml`, `Cache-Control: public, max-age=86400` on audio, movie, and TV show fallbacks
 - [x] **Scanner API Headers Check**: Verified HTTP 200, `Content-Type: application/json; charset=utf-8` via live curl
 - [x] **JS Syntax Validation**: All 15 JS files passed `node -c` inside Docker container with 0 errors
-- [x] **Accessibility Attribute Audit**: 0 missing aria-labels across 50 interactive elements in `index.html` + full CinemaPlayer labels
+- [x] **Accessibility Attribute Audit**: 0 missing aria-labels across all interactive elements in `index.html` + full CinemaPlayer labels + keyboard focus rings
 - [x] **Emoji Scanner Validation**: Codebase scanned across all HTML/JS/PHP/CSS/SQL files: 0 emoji occurrences found
 - [x] **Audio Queue Integrity**: Tested single source of truth; sequential playback 5/5 without loop or desync
 - [x] **TrueNAS SCALE Live Deployment**: Container synchronized and running healthy at `192.168.0.245:16010`
 - [x] **Git Repository Synchronization**: Pushed cleanly to GitHub `christophermonterocortes-cr/christos` main branch
+

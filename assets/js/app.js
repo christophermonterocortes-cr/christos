@@ -64,6 +64,15 @@ function changeAppTheme(themeName, reloadView = true) {
 function initGlobalShortcuts() {
     document.addEventListener('keydown', (e) => {
         if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
+        // Custom keyboard-operable elements (Sidebar items, star ratings)
+        if (e.target && (e.target.matches('#sidebar nav li[data-view]') || e.target.matches('.star-icon'))) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.target.click();
+                return;
+            }
+        }
         
         // Spotlight Search (Ctrl+K, Cmd+K, or '/')
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
